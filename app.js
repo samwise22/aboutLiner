@@ -1,4 +1,4 @@
-// app.js — v0.1 version from index.html
+// app.js — v0.1 fully working modular version
 
 const editor = document.getElementById('editor');
 const tableContainer = document.getElementById('tableContainer');
@@ -179,6 +179,7 @@ editor.addEventListener('keyup', () => {
 });
 
 updateTable();
+
 editor.addEventListener('focus', () => {
   if (editor.innerHTML.trim() === '') {
     const ul = document.createElement('ul');
@@ -194,17 +195,3 @@ editor.addEventListener('focus', () => {
     sel.addRange(range);
   }
 });
-if (editor.innerHTML.trim() === '') {
-  const ul = document.createElement('ul');
-  const li = document.createElement('li');
-  ul.appendChild(li);
-  editor.appendChild(ul);
-
-  const range = document.createRange();
-  range.selectNodeContents(li);
-  range.collapse(true);
-  const sel = window.getSelection();
-  sel.removeAllRanges();
-  sel.addRange(range);
-}
-
