@@ -1,0 +1,47 @@
+body {
+  font-family: Arial, sans-serif;
+  max-width: 700px;
+  margin: 2em auto;
+}
+#editor {
+  border: 1px solid #ccc;
+  min-height: 200px;
+  padding: 10px;
+  outline: none;
+}
+ul, li {
+  margin: 0;
+  padding-left: 1.2em;
+  list-style-type: none;
+  position: relative;
+}
+.column-name {
+  display: inline-block;
+  background-color: #eef;
+  border-radius: 10px;
+  padding: 2px 8px;
+  margin-right: 6px;
+  font-weight: bold;
+  color: #336;
+  min-width: 80px;
+}
+.column-name[contenteditable="true"]:empty:before {
+  content: "column name";
+  color: #888;
+}
+.cell-content {
+  display: inline;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1em;
+}
+th, td {
+  border: 1px solid #aaa;
+  padding: 6px;
+  text-align: left;
+}
+th {
+  background: #eee;
+}
