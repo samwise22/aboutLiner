@@ -277,3 +277,36 @@ button {
 .outline-panel > ul > li > ul > li .sub-bullet__cell.collapsed-name::before {
   display: none !important;
 }
+/* Highlight all value inputs (text and textarea) in a row pending deletion */
+.outline-panel li.pending-delete .cell-value {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+  transition: background-color 0.2s ease;
+}
+.outline-panel li.pending-delete .cell-value {
+  /* covers both input and textarea.cell-value */
+}
+/* Highlight any textarea in a pending-delete row */
+.outline-panel li.pending-delete textarea {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+}
+
+/* Ensure nested textarea value fields in pending-delete rows highlight red */
+.outline-panel li.pending-delete .sub-bullet__cell textarea {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+}
+
+/* Highlight only nested textarea in columns pending deletion */
+.outline-panel li .sub-bullet__cell.pending-delete-col textarea {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+  transition: background-color 0.2s ease;
+}
+/* Highlight entire table row pending deletion */
+.table-panel tbody tr.pending-delete-row {
+  background-color: rgba(255, 0, 0, 0.1) !important;
+}
+
+/* Highlight entire table column pending deletion */
+.table-panel thead th.pending-delete-col,
+.table-panel tbody td.pending-delete-col {
+  background-color: rgba(255, 0, 0, 0.1) !important;
+}
