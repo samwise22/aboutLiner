@@ -8,6 +8,11 @@ export default function App() {
   ]);
   const [editingCell, setEditingCell] = useState(null); // key = `${rowIndex}-${colIndex}`
   const inputRefs = useRef({}); // keys: `${rowIndex}-${colIndex}`
+  const [pendingDeleteRow, setPendingDeleteRow] = useState(null);
+  const pendingDeleteTimer = useRef(null);
+  // Two-step deletion for sub-bullet columns
+  const [pendingDeleteCol, setPendingDeleteCol] = useState(null);
+  const pendingDeleteColTimer = useRef(null);
 
   // Helper to focus an input by row and column index and field
   const focusInput = (rowIndex, colIndex, field = 'value') => {
@@ -258,24 +263,130 @@ export default function App() {
       <div className="outline-panel">
         <ul style={{ listStyleType: 'none', paddingLeft: 0 }}>
           {rows.map((row, rowIndex) => (
-            <li key={rowIndex} style={{ marginBottom: 8 }}>
-              <input
-                type="text"
-                value={row[0].value}
-                onChange={e => updateCell(rowIndex, 0, 'value', e.target.value)}
-                onKeyDown={e => handleKeyDown(e, rowIndex, 0)}
-                ref={el => (inputRefs.current[`${rowIndex}-0-value`] = el)}
-                style={{ width: 150, marginRight: 8 }}
-                aria-label={`Row ${rowIndex + 1} label`}
-              />
+            <li
+              key={rowIndex}
+              className={pendingDeleteRow === rowIndex ? 'pending-delete' : ''}
+              style={{ marginBottom: 8 }}
+            >
+              <div className="sub-bullet__cell" style={{ display: 'flex', gap: '4px' }}>
+                <input
+                  className="cell-name"
+                  type="text"
+                  placeholder="Title"
+                  value={row[0].name}
+                  onChange={e => updateCell(rowIndex, 0, 'name', e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      focusInput(rowIndex, 0, 'value');
+                      return;
+                    }
+                    if (e.key === 'Tab' && !e.shiftKey) {
+                      e.preventDefault();
+                      focusInput(rowIndex, 0, 'value');
+                      return;
+                    }
+                    handleKeyDown(e, rowIndex, 0);
+                  }}
+                  ref={el => (inputRefs.current[`${rowIndex}-0-name`] = el)}
+                  aria-label={`Row ${rowIndex + 1} column 1 name`}
+                />
+                <input
+                  className="cell-value"
+                  type="text"
+                  placeholder="Value"
+                  value={row[0].value}
+                  onChange={e => updateCell(rowIndex, 0, 'value', e.target.value)}
+                  onKeyDown={e => {
+                    // Two-step deletion when sub-bullets have values
+                    if (
+                      e.key === 'Backspace' &&
+                      row[0].value === '' &&
+                      columns > 1 &&
+                      rows[rowIndex].slice(1).some(cell => cell.value !== '')
+                    ) {
+                      e.preventDefault();
+                      if (pendingDeleteRow !== rowIndex) {
+                        setPendingDeleteRow(rowIndex);
+                        clearTimeout(pendingDeleteTimer.current);
+                        pendingDeleteTimer.current = setTimeout(() => {
+                          setPendingDeleteRow(null);
+                        }, 5000);
+                      } else {
+                        clearTimeout(pendingDeleteTimer.current);
+                        setPendingDeleteRow(null);
+                        setRows(prev => {
+                          const copy = [...prev];
+                          copy.splice(rowIndex, 1);
+                          return copy;
+                        });
+                        setTimeout(() => focusInput(Math.max(0, rowIndex - 1), 0, 'value'), 0);
+                      }
+                      return;
+                    }
+                    // Backspace on empty level-1 with all sub-values empty => remove row
+                    if (
+                      e.key === 'Backspace' &&
+                      row[0].value === '' &&
+                      columns > 1 &&
+                      rows[rowIndex].slice(1).every(cell => cell.value === '')
+                    ) {
+                      e.preventDefault();
+                      setRows(prev => {
+                        const copy = [...prev];
+                        copy.splice(rowIndex, 1);
+                        return copy;
+                      });
+                      // focus previous row's value
+                      setTimeout(() => {
+                        const target = Math.max(0, rowIndex - 1);
+                        focusInput(target, 0, 'value');
+                      }, 0);
+                      return;
+                    }
+                    // Custom backspace: if only one column and value empty, delete row
+                    if (
+                      e.key === 'Backspace' &&
+                      columns === 1 &&
+                      row[0].value === ''
+                    ) {
+                      e.preventDefault();
+                      if (rowIndex > 0) {
+                        // Remove this row
+                        setRows(prev => {
+                          const copy = [...prev];
+                          copy.splice(rowIndex, 1);
+                          return copy;
+                        });
+                        // Focus previous row's value after state update
+                        setTimeout(() => focusInput(rowIndex - 1, 0, 'value'), 0);
+                      }
+                      return;
+                    }
+                    // Preserve existing arrow-left reveal and other handling
+                    if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
+                      e.preventDefault();
+                      setEditingCell(`${rowIndex}-0-name`);
+                      focusInput(rowIndex, 0, 'name');
+                      return;
+                    }
+                    handleKeyDown(e, rowIndex, 0);
+                  }}
+                  ref={el => (inputRefs.current[`${rowIndex}-0-value`] = el)}
+                  aria-label={`Row ${rowIndex + 1} column 1 value`}
+                  onFocus={() => { setEditingCell(`${rowIndex}-0-value`); setPendingDeleteRow(null); clearTimeout(pendingDeleteTimer.current); }}
+                />
+              </div>
               {columns > 1 && (
                 <ul style={{ listStyleType: 'none', paddingLeft: 16, marginTop: 4 }}>
                   {row.slice(1).map((cell, colIndex) => (
                     <li key={colIndex}>
                       <div
-                        className={`sub-bullet__cell${
-                          row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name` ? ' collapsed-name' : ''
-                        }`}
+                        className={
+                          'sub-bullet__cell' +
+                          (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name` ? ' collapsed-name' : '') +
+                          (pendingDeleteCol === colIndex ? ' pending-delete-col' : '')
+                        }
                         style={{
                           display: 'flex',
                           alignItems: 'center',
@@ -334,6 +445,69 @@ export default function App() {
                           style={{ flex: 1, resize: 'vertical', minHeight: '1.5em', overflow: 'hidden' }}
                           rows={1}
                           onKeyDown={e => {
+                            // Two-step deletion for sub-bullets with mixed data
+                            if (
+                              e.key === 'Backspace' &&
+                              e.target.value === '' &&
+                              columns > 1 &&
+                              rows.some(r => r[colIndex + 1].value !== '')
+                            ) {
+                              e.preventDefault();
+                              if (pendingDeleteCol !== colIndex) {
+                                setPendingDeleteCol(colIndex);
+                                clearTimeout(pendingDeleteColTimer.current);
+                                pendingDeleteColTimer.current = setTimeout(() => {
+                                  setPendingDeleteCol(null);
+                                }, 5000);
+                              } else {
+                                clearTimeout(pendingDeleteColTimer.current);
+                                setPendingDeleteCol(null);
+                                // remove column
+                                setColumns(prev => prev - 1);
+                                setRows(prevRows =>
+                                  prevRows.map(r => {
+                                    const copy = [...r];
+                                    copy.splice(colIndex + 1, 1);
+                                    return copy;
+                                  })
+                                );
+                                // focus prior column or row label
+                                setTimeout(() => {
+                                  if (colIndex > 0) {
+                                    focusInput(rowIndex, colIndex, 'value');
+                                  } else {
+                                    focusInput(rowIndex, 0, 'value');
+                                  }
+                                }, 0);
+                              }
+                              return;
+                            }
+                            // If backspace on an empty sub-cell and entire column is empty: remove that column across all rows
+                            if (
+                              e.key === 'Backspace' &&
+                              e.target.value === '' &&
+                              rows.every(r => r[colIndex + 1].value === '')
+                            ) {
+                              e.preventDefault();
+                              // remove column
+                              setColumns(prev => prev - 1);
+                              setRows(prevRows =>
+                                prevRows.map(r => {
+                                  const copy = [...r];
+                                  copy.splice(colIndex + 1, 1);
+                                  return copy;
+                                })
+                              );
+                              // determine new focus position: same row, previous column (or level-1 if none)
+                              setTimeout(() => {
+                                if (colIndex > 0) {
+                                  focusInput(rowIndex, colIndex, 'value');
+                                } else {
+                                  focusInput(rowIndex, 0, 'value');
+                                }
+                              }, 0);
+                              return;
+                            }
                             // Enter creates new column/row behavior; Shift+Enter inserts newline
                             if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault();
@@ -355,7 +529,11 @@ export default function App() {
                           }}
                           ref={el => (inputRefs.current[`${rowIndex}-${colIndex + 1}-value`] = el)}
                           aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} value`}
-                          onFocus={() => setEditingCell(`${rowIndex}-${colIndex + 1}-value`)}
+                          onFocus={() => {
+                            setEditingCell(`${rowIndex}-${colIndex + 1}-value`);
+                            setPendingDeleteCol(null);
+                            clearTimeout(pendingDeleteColTimer.current);
+                          }}
                           onBlur={() => setEditingCell(null)}
                         />
                       </div>
@@ -373,7 +551,13 @@ export default function App() {
             <tr>
               <th className="styled-table__header-cell"></th>
               {columns > 1 && rows[0].slice(1).map((cell, idx) => (
-                <th key={idx} className="styled-table__header-cell">
+                <th
+                  key={idx}
+                  className={
+                    'styled-table__header-cell' +
+                    (pendingDeleteCol === idx ? ' pending-delete-col' : '')
+                  }
+                >
                   <span
                     style={{
                       display: 'inline-block',
@@ -394,7 +578,10 @@ export default function App() {
           </thead>
           <tbody>
             {rows.map((row, rIdx) => (
-              <tr key={rIdx}>
+              <tr
+                key={rIdx}
+                className={pendingDeleteRow === rIdx ? 'pending-delete-row' : ''}
+              >
                 <td
                   className={`styled-table__cell ${
                     editingCell === `${rIdx}-0-value` ? 'focused-cell' : ''
@@ -407,9 +594,11 @@ export default function App() {
                 {row.slice(1).map((cell, cIdx) => (
                   <td
                     key={cIdx}
-                    className={`styled-table__cell ${
-                      editingCell === `${rIdx}-${cIdx + 1}-value` ? 'focused-cell' : ''
-                    }`}
+                    className={
+                      'styled-table__cell' +
+                      (editingCell === `${rIdx}-${cIdx + 1}-value` ? ' focused-cell' : '') +
+                      (pendingDeleteCol === cIdx ? ' pending-delete-col' : '')
+                    }
                     onClick={() => focusInput(rIdx, cIdx + 1, 'value')}
                     style={{ cursor: 'pointer' }}
                   >
