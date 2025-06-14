@@ -1,3 +1,4 @@
+/*v 4.0.1
 /* Import Material Symbols Outlined for icon usage */
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
 
@@ -482,4 +483,12 @@ button {
 /* Highlight entire column on header hover */
 .highlight-column {
   background-color: rgba(25, 118, 210, 0.1); /* light blue tint matching primary color */
+}
+
+/* Highlight specific table cell when its outline field is focused */
+.table-panel tbody td.highlight-cell {
+  background-color: rgba(25, 118, 210, 0.1) !important;
+  transition: background-color 0.2s ease;
+  outline: 1px solid rgba(25, 118, 210, 0.4) !important;
+  outline-offset: -1px;
 }

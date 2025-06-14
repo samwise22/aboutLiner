@@ -1,3 +1,4 @@
+//v 4.0.1
 import React, { useState, useRef, useEffect } from 'react';
 import logo from './aboutliner rectangle.png';
 
@@ -91,6 +92,9 @@ export default function App() {
 
   // Track which column header is hovered
   const [hoveredCol, setHoveredCol] = useState(null);
+
+  // Track which outline cell is focused to highlight table cell
+  const [focusedCell, setFocusedCell] = useState({ row: null, col: null });
 
   // Helper to strip headers from export/import text
   const stripHeaders = (text) => {
@@ -894,6 +898,8 @@ export default function App() {
                           }}
                           ref={el => (inputRefs.current[`${rowIndex}-0-name`] = el)}
                           aria-label={`Row ${rowIndex + 1} column 1 name`}
+                          onFocus={() => setFocusedCell({ row: rowIndex, col: 0 })}
+                          onBlur={() => setFocusedCell({ row: null, col: null })}
                         />
                       )}
                       <input
@@ -980,7 +986,8 @@ export default function App() {
                         }}
                         ref={el => (inputRefs.current[`${rowIndex}-0-value`] = el)}
                         aria-label={`Row ${rowIndex + 1} column 1 value`}
-                        onFocus={() => { setEditingCell(`${rowIndex}-0-value`); setPendingDeleteRow(null); clearTimeout(pendingDeleteTimer.current); }}
+                        onFocus={() => { setEditingCell(`${rowIndex}-0-value`); setPendingDeleteRow(null); clearTimeout(pendingDeleteTimer.current); setFocusedCell({ row: rowIndex, col: 0 }); }}
+                        onBlur={() => setFocusedCell({ row: null, col: null })}
                       />
                     </div>
                     {!reorderMode && columns > 1 && (
@@ -1043,8 +1050,8 @@ export default function App() {
                                 }}
                                 ref={(el) => (inputRefs.current[`${rowIndex}-${colIndex + 1}-name`] = el)}
                                 aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} name`}
-                                onFocus={() => setEditingCell(`${rowIndex}-${colIndex + 1}-name`)}
-                                onBlur={() => setEditingCell(null)}
+                                onFocus={() => { setEditingCell(`${rowIndex}-${colIndex + 1}-name`); setFocusedCell({ row: rowIndex, col: colIndex + 1 }); }}
+                                onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
                               />
                               <textarea
                                 placeholder="Value"
@@ -1145,8 +1152,9 @@ export default function App() {
                                   setEditingCell(`${rowIndex}-${colIndex + 1}-value`);
                                   setPendingDeleteCol(null);
                                   clearTimeout(pendingDeleteColTimer.current);
+                                  setFocusedCell({ row: rowIndex, col: colIndex + 1 });
                                 }}
-                                onBlur={() => setEditingCell(null)}
+                                onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
                               />
                             </div>
                           </li>
@@ -1206,7 +1214,10 @@ export default function App() {
                       const ref = inputRefs.current[`${rIdx}-${cIdx}-value`];
                       if (ref) ref.setSelectionRange(0, ref.value.length);
                     }}
-                    className={hoveredCol === cIdx ? 'highlight-column' : ''}
+                    className={
+                      (hoveredCol === cIdx ? 'highlight-column ' : '') +
+                      (focusedCell.row === rIdx && focusedCell.col === cIdx ? 'highlight-cell' : '')
+                    }
                   >
                     {cell.value}
                   </td>
