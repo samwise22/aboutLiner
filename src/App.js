@@ -1,6 +1,8 @@
 //v 4.0.1
 import React, { useState, useRef, useEffect } from 'react';
 import logo from './aboutliner rectangle.png';
+import MarkdownIt from 'markdown-it';
+import DOMPurify from 'dompurify';
 
 const parseImportText = (text) => {
   const lines = text.split('\n');
@@ -9,8 +11,10 @@ const parseImportText = (text) => {
   for (const line of lines) {
     // Detect level-1 bullets (*) or -
     const lvl1 = line.match(/^([*-])\s+(.*)/);
-    // Detect level-2 bullets with indentation
-    const lvl2 = line.match(/^\s+[-*]\s+(.*)/);
+    // Detect third-level or deeper bullets (4+ spaces)
+    const lvl3 = line.match(/^\s{4,}[-*]\s+(.*)/);
+    // Detect level-2 bullets with exactly two spaces
+    const lvl2 = line.match(/^ {2}[-*]\s+(.*)/);
     if (lvl1) {
       // Push previous top-level if exists
       if (current) rowsArr.push(current);
@@ -23,7 +27,18 @@ const parseImportText = (text) => {
         value = raw.slice(idx + 1).trim();
       }
       current = { title, value, subs: [] };
-    } else if (lvl2 && current) {
+    }
+    // Third-level or deeper bullets: append as Markdown list to last sub-value
+    else if (lvl3 && current) {
+      const itemText = lvl3[1].trim();
+      const lastSub = current.subs[current.subs.length - 1];
+      if (lastSub) {
+        lastSub.value = lastSub.value
+          ? `${lastSub.value}\n- ${itemText}`
+          : `- ${itemText}`;
+      }
+    }
+    else if (lvl2 && current) {
       const raw = lvl2[1].trim();
       const idx = raw.indexOf(':');
       let subTitle = '', subValue = raw;
@@ -55,6 +70,41 @@ const parseImportText = (text) => {
 };
 
 export default function App() {
+  // Markdown parser (no HTML, support lists and links)
+  const md = new MarkdownIt({
+    html: false,
+    linkify: true,
+    typographer: true
+  });
+  // Keep reference to default list_item_open renderer
+  const defaultListItemOpen = md.renderer.rules.list_item_open
+    || function(tokens, idx, options, env, self) {
+         return self.renderToken(tokens, idx, options);
+       };
+  // Inject inline styles on <li> to collapse vertical spacing
+  md.renderer.rules.list_item_open = (tokens, idx, options, env, self) => {
+    // Add inline style to collapse margins/padding and tighten lines
+    tokens[idx].attrPush(['style', 'margin:0;padding:0;line-height:1;']);
+    return defaultListItemOpen(tokens, idx, options, env, self);
+  };
+  // Bullet list (ul) margin/padding collapse
+  const defaultBulletListOpen = md.renderer.rules.bullet_list_open
+    || function(tokens, idx, options, env, self) {
+         return self.renderToken(tokens, idx, options);
+       };
+  md.renderer.rules.bullet_list_open = (tokens, idx, options, env, self) => {
+    tokens[idx].attrPush(['style', 'margin:0;padding:0;']);
+    return defaultBulletListOpen(tokens, idx, options, env, self);
+  };
+  // Ordered list (ol) margin/padding collapse
+  const defaultOrderedListOpen = md.renderer.rules.ordered_list_open
+    || function(tokens, idx, options, env, self) {
+         return self.renderToken(tokens, idx, options);
+       };
+  md.renderer.rules.ordered_list_open = (tokens, idx, options, env, self) => {
+    tokens[idx].attrPush(['style', 'margin:0;padding:0;']);
+    return defaultOrderedListOpen(tokens, idx, options, env, self);
+  };
   // Initial simple outline seed
   const [columns, setColumns] = useState(1);
   const [rows, setRows] = useState([
@@ -179,11 +229,11 @@ export default function App() {
     '  - C4-N:R4-C4',
     '  - C5-N:R4-C5',
     '* RT:R5-N',
-    '  - C1-N:R5-C1',
-    '  - C2-N:R5-C2',
-    '  - C3-N:R5-C3',
-    '  - C4-N:R5-C4',
-    '  - C5-N:R5-C5'
+    '  - C1-N:**Bold Text**',
+    '  - C2-N:*Italic Text*',
+    '  - C3-N:List:\n    - Item A\n    - Item B\n    - Item C',
+    '  - C4-N:> Blockquote example',
+    '  - C5-N:`Inline code sample`'
   ].join('\n');
 
   // Handler to paste example into the textarea
@@ -211,19 +261,42 @@ export default function App() {
 
   // Copy the table to clipboard as a flat HTML table and TSV
   const handleCopyTable = async () => {
-    // Build a flat HTML table export
-    let html = '<table><thead>';
+    // Include inline CSS for export
+    const styleBlock = `
+      <style>
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 4px 8px; vertical-align: middle; }
+        .column-header-pill { border-radius: 999px; padding: 4px 12px; color: #333; display: inline-block; }
+        /* Define background colors matching var(--col-color-N) */
+        .column-header-pill:nth-of-type(2) { background: #e0f7fa; }
+        .column-header-pill:nth-of-type(3) { background: #ffe0b2; }
+        .column-header-pill:nth-of-type(4) { background: #e1bee7; }
+        .column-header-pill:nth-of-type(5) { background: #c8e6c9; }
+        .markdown-cell a { color: #4d90fe; text-decoration: underline; }
+        .markdown-cell ul, .markdown-cell ol { margin: 0; padding-left: 1em; }
+      </style>
+    `;
+    let html = styleBlock + '<table><thead>';
     html += '<tr>';
     // Column headers: Title then sub-headers
     rows[0].forEach((cell, idx) => {
-      html += `<th>${cell.name || (idx === 0 ? 'Title' : '')}</th>`;
+      if (idx === 0) {
+        html += `<th>${cell.name || 'Title'}</th>`;
+      } else {
+        html += `<th><span class="column-header-pill">${cell.name || ''}</span></th>`;
+      }
     });
     html += '</tr></thead><tbody>';
     // Table body rows
     rows.forEach(row => {
       html += '<tr>';
-      row.forEach(cell => {
-        html += `<td>${cell.value || ''}</td>`;
+      row.forEach((cell, cIdx) => {
+        if (cIdx === 0) {
+          html += `<td>${cell.value || ''}</td>`;
+        } else {
+          const rendered = DOMPurify.sanitize(md.render(cell.value || ''));
+          html += `<td><div class="markdown-cell">${rendered}</div></td>`;
+        }
       });
       html += '</tr>';
     });
@@ -900,6 +973,7 @@ export default function App() {
                           aria-label={`Row ${rowIndex + 1} column 1 name`}
                           onFocus={() => setFocusedCell({ row: rowIndex, col: 0 })}
                           onBlur={() => setFocusedCell({ row: null, col: null })}
+                          onDoubleClick={e => e.target.select()}
                         />
                       )}
                       <input
@@ -988,6 +1062,7 @@ export default function App() {
                         aria-label={`Row ${rowIndex + 1} column 1 value`}
                         onFocus={() => { setEditingCell(`${rowIndex}-0-value`); setPendingDeleteRow(null); clearTimeout(pendingDeleteTimer.current); setFocusedCell({ row: rowIndex, col: 0 }); }}
                         onBlur={() => setFocusedCell({ row: null, col: null })}
+                        onDoubleClick={e => e.target.select()}
                       />
                     </div>
                     {!reorderMode && columns > 1 && (
@@ -1052,6 +1127,7 @@ export default function App() {
                                 aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} name`}
                                 onFocus={() => { setEditingCell(`${rowIndex}-${colIndex + 1}-name`); setFocusedCell({ row: rowIndex, col: colIndex + 1 }); }}
                                 onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
+                                onDoubleClick={e => e.target.select()}
                               />
                               <textarea
                                 placeholder="Value"
@@ -1155,6 +1231,7 @@ export default function App() {
                                   setFocusedCell({ row: rowIndex, col: colIndex + 1 });
                                 }}
                                 onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
+                                onDoubleClick={e => e.target.select()}
                               />
                             </div>
                           </li>
@@ -1181,9 +1258,19 @@ export default function App() {
                   style={{ cursor: 'pointer' }}
                   onClick={() => focusInput(0, idx, 'name')}
                   onDoubleClick={() => {
+                    // focus then select all after focus has taken effect
                     focusInput(0, idx, 'name');
-                    const ref = inputRefs.current[`0-${idx}-name`];
-                    if (ref) ref.setSelectionRange(0, ref.value.length);
+                    setTimeout(() => {
+                      const ref = inputRefs.current[`0-${idx}-name`];
+                      if (ref) {
+                        ref.focus();
+                        if (typeof ref.select === 'function') {
+                          ref.select();
+                        } else {
+                          ref.setSelectionRange(0, ref.value.length);
+                        }
+                      }
+                    }, 0);
                   }}
                   onMouseEnter={() => setHoveredCol(idx)}
                   onMouseLeave={() => setHoveredCol(null)}
@@ -1207,19 +1294,53 @@ export default function App() {
                 {row.map((cell, cIdx) => (
                   <td
                     key={cIdx}
-                    style={{ cursor: 'pointer' }}
+                    style={{
+                      cursor: 'pointer',
+                      ...(focusedCell.row === rIdx && focusedCell.col === cIdx
+                        ? {
+                            backgroundColor: 'rgba(25, 118, 210, 0.1)',
+                            outline: '1px solid rgba(25, 118, 210, 0.4)',
+                            outlineOffset: '-1px',
+                          }
+                        : {})
+                    }}
                     onClick={() => focusInput(rIdx, cIdx, 'value')}
                     onDoubleClick={() => {
+                      // focus then select all after focus has taken effect
                       focusInput(rIdx, cIdx, 'value');
-                      const ref = inputRefs.current[`${rIdx}-${cIdx}-value`];
-                      if (ref) ref.setSelectionRange(0, ref.value.length);
+                      setTimeout(() => {
+                        const ref = inputRefs.current[`${rIdx}-${cIdx}-value`];
+                        if (ref) {
+                          ref.focus();
+                          if (typeof ref.select === 'function') {
+                            ref.select();
+                          } else {
+                            ref.setSelectionRange(0, ref.value.length);
+                          }
+                        }
+                      }, 0);
                     }}
                     className={
                       (hoveredCol === cIdx ? 'highlight-column ' : '') +
                       (focusedCell.row === rIdx && focusedCell.col === cIdx ? 'highlight-cell' : '')
                     }
                   >
-                    {cell.value}
+                    {cIdx > 0
+                      ? (
+                        <div
+                          className="markdown-cell"
+                          style={{
+                            lineHeight: '1',
+                            margin: 0,
+                            padding: 0
+                          }}
+                          dangerouslySetInnerHTML={{
+                            __html: DOMPurify.sanitize(md.render(cell.value || ''))
+                          }}
+                        />
+                      )
+                      : cell.value
+                    }
                   </td>
                 ))}
               </tr>

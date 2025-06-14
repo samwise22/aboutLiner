@@ -465,8 +465,14 @@ button {
   outline: 1px solid rgba(0, 0, 0, 0.2);
   outline-offset: -1px;
 }
- 
 
+/* Tighter table cell and header styling for reduced height */
+.table-panel thead th,
+.table-panel tbody td {
+  padding: 1px 6px;        /* less top/bottom space */
+  line-height: 1.2;        /* tighter line spacing */
+  vertical-align: middle;  /* center content vertically */
+}
  
 
 .column-header-pill {
@@ -491,4 +497,56 @@ button {
   transition: background-color 0.2s ease;
   outline: 1px solid rgba(25, 118, 210, 0.4) !important;
   outline-offset: -1px;
+}
+
+
+/* Collapse spacing for top-level Markdown lists inside cells */
+.table-panel .markdown-cell > ul,
+.table-panel .markdown-cell > ol {
+  margin-block-start: 0 !important;
+  margin-block-end: 0 !important;
+  padding-inline-start: 1em !important; /* indent */
+  text-align: left !important;
+  list-style-position: inside !important;
+}
+
+/* Collapse spacing between list items in top-level lists */
+.table-panel .markdown-cell > ul > li,
+.table-panel .markdown-cell > ol > li {
+  margin-block-start: 0 !important;
+  margin-block-end: 0 !important;
+  padding: 0px 0 !important;
+  line-height: 0.3 !important;
+}
+
+/* Remove bottom margin on paragraph in markdown cells to tighten header-list gap */
+.table-panel .markdown-cell p {
+  margin-block-end: 0 !important;
+}
+
+/* Ensure no extra gap before a list that follows a paragraph */
+.table-panel .markdown-cell p + ul,
+.table-panel .markdown-cell p + ol {
+  margin-block-start: 0 !important;
+  margin-block-end: 0 !important;
+}
+
+/* Tighter styling for blockquotes in markdown cells */
+.table-panel .markdown-cell blockquote {
+  margin: 0 0 0.2em;       /* minimal bottom margin */
+  padding: 0.5em 0.75em;   /* reduce horizontal padding */
+  border-left: 1px solid #ccc; /* keep the visual bar */
+  background-color: #f9f9f9;    /* subtle background */
+}
+
+/* Tighter inline code styling in markdown cells */
+.table-panel .markdown-cell code {
+  background-color: rgba(0, 0, 0, 0.05); /* light gray background */
+  padding: 0.1em 0.25em !important;     /* reduced horizontal padding */
+  border-radius: 3px;
+  font-family: monospace;
+}
+/* Let events pass through the markdown wrapper into the TD: */
+.markdown-cell {
+  pointer-events: none;
 }
