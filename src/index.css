@@ -1,0 +1,485 @@
+/* Import Material Symbols Outlined for icon usage */
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0');
+
+/* Ensure Material Symbols Outlined font settings */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+}
+
+/* Global styles */
+body {
+  font-family: Helvetica, Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f4f8 0%, #fafafa 100%);
+}
+
+/* Ensure form controls inherit the app font */
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
+}
+
+/* TipTap outline editor container */
+.outline-editor {
+  border: 1px solid #ccc;
+  padding: 10px;
+  min-height: 200px;
+  font-family: inherit;
+}
+
+/* Custom list styling */
+.custom-bullet-list {
+  margin: 0;
+  padding-left: 1.2em;
+}
+
+.custom-list-item {
+  margin: 0;
+  padding: 0.2em 0;
+}
+
+/* Missing-text decoration */
+.custom-list-item[data-missing]::after {
+  content: ' [Missing: ' attr(data-missing) ']';
+  color: #999;
+  margin-left: 0.5em;
+}
+
+/* Ghost bullet placeholders */
+.custom-list-item[data-bullets]::before {
+  content: attr(data-bullets) ' ';
+  opacity: 0.3;
+  margin-left: 1.2em;
+  display: inline-block;
+  width: 1em;
+}
+/* App container layout */
+.app-container {
+  display: flex;
+  height: 100vh;
+  box-sizing: border-box;
+  width: 100%;
+  padding: 24px;
+  font-family: Arial, sans-serif;
+  background: #fafafa;
+  gap: 16px;
+}
+
+/* Outline panel styles */
+.outline-panel {
+  width: 25%;
+  padding: 16px;
+  padding-left: 24px;
+  overflow-y: auto;
+  background-color: rgb(200, 220, 220);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+.outline-panel ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+/* Top-level list items spacing */
+/* Top-level list items spacing */
+.outline-panel > ul > li {
+  margin-bottom: 1.2em;
+}
+
+/* Make list items a positioning context for the insertion line */
+.outline-panel > ul > li,
+.table-panel ul > li {
+  position: relative;
+}
+
+/* Nested sub-bullets tighter spacing */
+.outline-panel ul ul li {
+  margin-bottom: 0.3em;
+}
+
+.outline-panel ul ul {
+  margin-bottom: 1.2em;
+}
+
+.outline-panel li {
+  margin-bottom: 8px;
+}
+.outline-panel input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  box-sizing: border-box;
+}
+/* Row-label inputs stay at default */
+.outline-panel ul ul input {
+  padding: 4px 8px;
+  font-size: 0.9em;
+}
+.outline-panel input:focus {
+  outline: 2px solid #4d90fe;
+  outline-offset: 2px;
+}
+
+/* Table panel styles */
+.table-panel {
+  flex: 1;
+  overflow: auto;
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+.table-panel table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* Define a pastel color palette array */
+:root {
+  /* Updated pastel color palette for better readability */
+  --pastel-colors: #EF9A9A,#A5D6A7,#FFF59D,#81D4FA,#CE93D8,#FFCC80;
+  --col-color-1: #E0E0E0;  /* light grey */
+  --col-color-2: #A5D6A7;  /* green lighten-3 */
+  --col-color-3: #FFF59D;  /* yellow lighten-3 */
+  --col-color-4: #81D4FA;  /* blue lighten-3 */
+  --col-color-5: #CE93D8;  /* purple lighten-3 */
+  --col-color-6: #FFCC80;  /* orange lighten-3 */
+  --col-color-default: #FAFAFA;
+}
+.table-panel thead {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+/* Table panel header cells */
+.table-panel thead th {
+  text-transform: uppercase;
+  font-weight: 600;
+  font-size: 0.875em;
+  padding: 12px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  color: #212121;
+  border-bottom: none;
+}
+/* Clear full-cell header backgrounds so only pills show color */
+.table-panel thead th {
+  background-color: transparent !important;
+}
+
+
+.table-panel thead th:nth-child(n+7) { background-color: #F5F5F5; }
+
+
+
+.table-panel th,
+.table-panel td {
+  border: none;
+}
+
+/* Subtle vertical separators starting from first data row */
+.table-panel tbody td:not(:last-child) {
+  border-right: 1px solid #e0e0e0;
+}
+
+/* Column alignment: first column left, all others centered */
+.table-panel th:nth-child(1),
+.table-panel td:nth-child(1) {
+  text-align: left;
+}
+
+.table-panel th:nth-child(n+2),
+.table-panel td:nth-child(n+2) {
+  text-align: center;
+}
+
+.table-panel tbody tr {
+  background: #ffffff;
+  border-top: none;
+  border-bottom: 1px solid #e0e0e0;
+  transition: background 0.25s ease;
+}
+.table-panel tbody tr:nth-child(even) {
+  background: #f4f6f8; /* subtle alternate background */
+}
+.table-panel tbody tr:hover {
+  background: #e8f0fe; /* hover highlight */
+  box-shadow: inset 4px 0 0 #1976d2;
+}
+.table-panel tbody td,
+.table-panel thead th {
+  padding: 12px 16px;
+}
+
+/* Preserve line breaks in table cells */
+.table-panel tbody td {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Hide name input by default */
+/* Show name input when empty (placeholder-shown) */
+.cell-name:placeholder-shown {
+  display: inline-block !important;
+}
+/* Show name input when focused */
+.cell-name:focus {
+  display: inline-block !important;
+}
+
+/* Ensure value input always visible */
+.sub-bullet__cell .cell-value {
+  display: inline-block;
+  flex: 1;
+}
+/* Highlight the focused table cell */
+.table-panel tbody td.focused-cell {
+  box-shadow: inset 0 0 0 2px #59B0F6;
+  border-radius: 4px;
+  transition: box-shadow 0.2s ease;
+}
+/* Collapse name input but keep it focusable */
+.sub-bullet__cell.collapsed-name .cell-name {
+  opacity: 0;
+  visibility: hidden;
+  /* keep original width so it can still receive focus */
+  width: 15%;
+  padding: 0;
+  border: none;
+  pointer-events: all;
+  transition: opacity 0.2s ease;
+}
+/* Limit column-name input width to 33% of its container */
+.sub-bullet__cell .cell-name {
+  flex: 0 0 10%;
+  max-width: 10%;
+}
+
+/* Scoped to level-1 title inputs */
+.outline-panel > ul > li > .sub-bullet__cell > input.cell-name {
+  width: 15% !important;
+  min-width: 40px;
+  transition: width 0.2s ease, opacity 0.2s ease, padding 0.2s ease;
+}
+
+/* Collapse populated but unfocused level-1 title inputs */
+.outline-panel > ul > li > .sub-bullet__cell > input.cell-name:not(:focus):not(:placeholder-shown) {
+  width: 2px !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  border: none !important;
+}
+
+/* Show colored bullet when name is collapsed */
+.sub-bullet__cell.collapsed-name::before {
+  content: '•';
+  display: inline-block;
+  margin-right: 8px;
+  font-size: 1em;
+  /* Use CSS variable for column color: default to first color */
+  color: var(--col-color-1);
+}
+/* Match bullet color to column index: use nth-of-type on list items */
+.outline-panel ul ul li:nth-child(1) .sub-bullet__cell.collapsed-name::before { color: var(--col-color-2); }
+.outline-panel ul ul li:nth-child(2) .sub-bullet__cell.collapsed-name::before { color: var(--col-color-3); }
+.outline-panel ul ul li:nth-child(3) .sub-bullet__cell.collapsed-name::before { color: var(--col-color-4); }
+.outline-panel ul ul li:nth-child(4) .sub-bullet__cell.collapsed-name::before { color: var(--col-color-5); }
+.outline-panel ul ul li:nth-child(5) .sub-bullet__cell.collapsed-name::before { color: var(--col-color-6); }
+.outline-panel ul ul {
+  list-style: none;
+  /* keep existing padding-left for indent */
+  padding-left: 1.2em;
+}
+.outline-panel ul ul li::marker {
+  content: none;
+}
+
+/* Suppress the default list marker for collapsed second-level sub-bullets */
+.outline-panel > ul > li > ul > li .sub-bullet__cell.collapsed-name::before {
+  display: none !important;
+}
+/* Highlight all value inputs (text and textarea) in a row pending deletion */
+.outline-panel li.pending-delete .cell-value {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+  transition: background-color 0.2s ease;
+}
+.outline-panel li.pending-delete .cell-value {
+  /* covers both input and textarea.cell-value */
+}
+/* Highlight any textarea in a pending-delete row */
+.outline-panel li.pending-delete textarea {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+}
+
+/* Ensure nested textarea value fields in pending-delete rows highlight red */
+.outline-panel li.pending-delete .sub-bullet__cell textarea {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+}
+
+/* Highlight only nested textarea in columns pending deletion */
+.outline-panel li .sub-bullet__cell.pending-delete-col textarea {
+  background-color: rgba(255, 0, 0, 0.25) !important;
+  transition: background-color 0.2s ease;
+}
+/* Highlight entire table row pending deletion */
+.table-panel tbody tr.pending-delete-row {
+  background-color: rgba(255, 0, 0, 0.1) !important;
+}
+
+/* Highlight entire table column pending deletion */
+.table-panel thead th.pending-delete-col,
+.table-panel tbody td.pending-delete-col {
+  background-color: rgba(255, 0, 0, 0.1) !important;
+}
+/* Show a white bullet for level-1 titles when name field is hidden */
+.outline-panel > ul > li > .sub-bullet__cell:has(> input.cell-name:not(:focus):not(:placeholder-shown))::before {
+  content: '•';
+  color: #fff;
+  margin-right: 8px;
+  font-size: 1em;
+  position: relative;
+  top: 7px; /* adjust vertical alignment if needed */
+}
+/* When level-1 title is collapsed, remove the gap before the value input */
+.outline-panel > ul > li > .sub-bullet__cell:has(> input.cell-name:not(:focus):not(:placeholder-shown)) {
+  gap: 0 !important;
+}
+
+/* And pull the value input into the bullet point area */
+.outline-panel > ul > li > .sub-bullet__cell > input.cell-name:not(:focus):not(:placeholder-shown) + input.cell-value {
+  margin-left: -50px !important;
+}
+
+/* Scoped to level-2 title inputs: reduce expanded field width */
+.outline-panel > ul > li > ul > li > .sub-bullet__cell > input.cell-name {
+  padding: 6px 8px 6px 9px !important;
+  position: relative !important;
+  top: 2px !important;
+  /* Override flex-basis instead of width for flex layout */
+  flex: 0 0 40% !important;
+  max-width: 40% !important;
+}
+
+/* Ensure placeholder text in empty level-2 title has same padding */
+.outline-panel > ul > li > ul > li > .sub-bullet__cell > input.cell-name:placeholder-shown:not(:focus) {
+  padding: 6px 8px 6px 9px !important;
+}
+/* Export text mode styles */
+.outline-panel.export-mode textarea {
+  width: 100%;
+  height: calc(100% - 80px); /* account for 48px top + 48px bottom padding */
+  box-sizing: border-box;
+  border: none;
+  resize: none;
+  font-family: monospace;
+  font-size: 0.9em;
+  padding: 8px;
+}
+
+/* Copy button styling */
+.outline-panel.export-mode > button:last-child {
+  display: block;
+  margin: 1px auto 0;
+  padding: 6px 12px;
+  border: none;
+  background-color: #4d90fe;
+  color: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+/* Copy button hover effect */
+.outline-panel.export-mode > button:last-child:hover {
+  background-color: #357ae8;
+}
+
+/* Toggle button hover effect */
+.outline-panel > button:first-child:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* In export-mode, push content down to clear the toggle button */
+.outline-panel.export-mode {
+  padding-bottom: 15px !important;
+}
+/* Button utility classes */
+/* Generic button base */
+.btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9em;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+/* Primary (blue) buttons: Copy, Clear, Cancel */
+.btn-primary {
+  background-color: #4d90fe;
+  color: #fff;
+}
+.btn-primary:hover {
+  background-color: #357ae8;
+}
+
+/* Danger (red) button: Confirm */
+.btn-danger {
+  background-color: #d9534f;
+  color: #fff;
+}
+.btn-danger:hover {
+  background-color: #c9302c;
+}
+
+/* Reorder mode: double width of level-1 value inputs */
+.outline-panel.reorder-mode .sub-bullet__cell > input.cell-value {
+  flex: 0 0 200% !important;
+  width: auto !important;
+}
+
+/* Visual drop target line for drag-and-drop */
+.insertion-line {
+  height: 2px;
+  background-color: #1976d2;
+  margin: 4px 0;
+  border-radius: 1px;
+}
+/* Subtle outline on hover for table header and data cells */
+/* Subtle outline on hover for table data cells only */
+.table-panel table td:hover {
+  outline: 1px solid rgba(0, 0, 0, 0.2);
+  outline-offset: -1px;
+}
+ 
+
+ 
+
+.column-header-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: #333;
+  font-weight: 600;         /* make text bold */
+  text-transform: uppercase; /* ensure uppercase */
+  cursor: pointer;
+}
+/* Subtle outline on hover for table header and data cells */
+
+/* Highlight entire column on header hover */
+.highlight-column {
+  background-color: rgba(25, 118, 210, 0.1); /* light blue tint matching primary color */
+}
