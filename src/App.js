@@ -9,6 +9,15 @@ const parseImportText = (text) => {
   const rowsArr = [];
   let current = null;
   for (const line of lines) {
+    // Handle blank lines => paragraph break in last sub-value
+    if (/^\s*$/.test(line) && current && current.subs.length) {
+      const lastSub = current.subs[current.subs.length - 1];
+      // Append a blank line as Markdown paragraph separator
+      lastSub.value = lastSub.value
+        ? `${lastSub.value}\n\n`
+        : `\n\n`;
+      continue;
+    }
     // Detect level-1 bullets (*) or -
     const lvl1 = line.match(/^([*-])\s+(.*)/);
     // Detect third-level or deeper bullets (4+ spaces)
@@ -18,13 +27,13 @@ const parseImportText = (text) => {
     if (lvl1) {
       // Push previous top-level if exists
       if (current) rowsArr.push(current);
-      // Parse optional title:value
+      // Parse optional title::value
       const raw = lvl1[2].trim();
-      const idx = raw.indexOf(':');
+      const idx = raw.indexOf('::');
       let title = '', value = raw;
       if (idx >= 0) {
         title = raw.slice(0, idx).trim();
-        value = raw.slice(idx + 1).trim();
+        value = raw.slice(idx + 2).trim();
       }
       current = { title, value, subs: [] };
     }
@@ -40,17 +49,92 @@ const parseImportText = (text) => {
     }
     else if (lvl2 && current) {
       const raw = lvl2[1].trim();
-      const idx = raw.indexOf(':');
+      const idx = raw.indexOf('::');
       let subTitle = '', subValue = raw;
       if (idx >= 0) {
         subTitle = raw.slice(0, idx).trim();
-        subValue = raw.slice(idx + 1).trim();
+        subValue = raw.slice(idx + 2).trim();
       }
       current.subs.push({ title: subTitle, value: subValue });
+    }
+    // Fallback: detect structure by indent when no colons are present
+    const indentMatch = line.match(/^(\s*)[-*]\s+(.*)/);
+    if (indentMatch) {
+      const indent = indentMatch[1].length;
+      const content = indentMatch[2];
+      if (indent === 4) {
+        // Level 1
+        if (current) rowsArr.push(current);
+        current = { title: '', value: content, subs: [] };
+      } else if (indent === 8 && current) {
+        // Level 2
+        current.subs.push({ title: '', value: content });
+      } else if (indent >= 12 && current) {
+        // Level 3+: nested list item
+        const lastSub = current.subs[current.subs.length - 1];
+        if (lastSub) {
+          lastSub.value = lastSub.value
+            ? `${lastSub.value}\n- ${content}`
+            : `- ${content}`;
+        }
+      }
     }
   }
   // Push last group
   if (current) rowsArr.push(current);
+  // Fallback: handle Dropbox-style lists if nothing parsed or structure is unusable (no subs)
+  // Improved Dropbox-style detection: trigger only if 2-space sub-bullets are missing but 4-space and top-level bullets exist
+  const hasLvl2 = lines.some(l => /^ {2}[-*]\s+/.test(l));
+  const hasLvl4 = lines.some(l => /^ {4}[-*]\s+/.test(l));
+  const hasLvl1 = lines.some(l => /^[-*]\s+/.test(l));
+  const maybeDropboxStyle =
+    (!hasLvl2 && hasLvl4 && hasLvl1);
+  if (maybeDropboxStyle) {
+    const rows = [];
+    let current = null;
+    for (const line of lines) {
+      const match = line.match(/^(\s*)[-*]\s+(.*)/);
+      if (!match) continue;
+      const indent = match[1].length;
+      const content = match[2].trim();
+      if (indent === 0) {
+        if (current) rows.push(current);
+        // Split content into name/value if :: exists
+        const idx = content.indexOf('::');
+        let title = '', value = content;
+        if (idx >= 0) {
+          title = content.slice(0, idx).trim();
+          value = content.slice(idx + 2).trim();
+        }
+        current = { title, value, subs: [] };
+      } else if (indent === 4 && current) {
+        // Split content into name/value if :: exists
+        const idx = content.indexOf('::');
+        let title = '', value = content;
+        if (idx >= 0) {
+          title = content.slice(0, idx).trim();
+          value = content.slice(idx + 2).trim();
+        }
+        current.subs.push({ title, value });
+      } else if (indent >= 8 && current && current.subs.length > 0) {
+        const last = current.subs[current.subs.length - 1];
+        // Always treat as a new bullet for Markdown list formatting at indent 8+
+        const formatted = `- ${content}`;
+        last.value += `\n${formatted}`;
+      }
+    }
+    if (current) rows.push(current);
+    if (rows.length > 0) {
+      const maxSubCount = rows.reduce((m, r) => Math.max(m, r.subs.length), 0);
+      rows.forEach(r => {
+        while (r.subs.length < maxSubCount) r.subs.push({ title: '', value: '' });
+      });
+      return {
+        columns: maxSubCount + 1,
+        rows: rows.map(r => [{ name: r.title, value: r.value }, ...r.subs.map(s => ({ name: s.title, value: s.value }))])
+      };
+    }
+  }
   if (rowsArr.length === 0) return null;
   // Normalize sub-count to max across all bullets
   const maxSubCount = rowsArr.reduce((max, r) => Math.max(max, r.subs.length), 0);
@@ -119,6 +203,9 @@ export default function App() {
 
   const [showTextMode, setShowTextMode] = useState(false);
 
+  // Text/table mode for text mode export/import
+  const [textModeFormat, setTextModeFormat] = useState('text'); // 'text' or 'tables'
+
   const [showClearModal, setShowClearModal] = useState(false);
   const [showInvalidModal, setShowInvalidModal] = useState(false);
   const [importText, setImportText] = useState('');
@@ -172,18 +259,69 @@ export default function App() {
     const lines = [];
     rows.forEach(row => {
       const [first, ...subs] = row;
-      const topText = first.name
-        ? `${first.name}:${first.value}`
-        : `${first.value}`;
-      lines.push(`* ${topText}`);
+      const topLine = first.name
+        ? `- ${first.name}:: ${first.value}`
+        : `- ${first.value}`;
+      lines.push(topLine);
       subs.forEach(cell => {
         const subText = cell.name
-          ? `${cell.name}:${cell.value}`
+          ? `${cell.name}:: ${cell.value}`
           : `${cell.value}`;
-        lines.push(`  - ${subText}`);
+        const subLines = subText.split('\n');
+        lines.push(`  - ${subLines[0]}`);
+        for (let i = 1; i < subLines.length; i++) {
+          lines.push(`      ${subLines[i]}`);
+        }
       });
     });
     return lines.join('\n');
+  };
+
+  // Export as TSV (tab-separated values)
+  const getExportTSV = () => {
+    const escapeCell = (v) => {
+      const val = v || '';
+      if (val.includes('\n') || val.includes('\t') || val.includes('"')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    return rows
+      .map(row => row.map(cell => escapeCell(cell.value)).join('\t'))
+      .join('\n');
+  };
+  // Parse TSV import
+  const parseImportTSV = (text) => {
+    // Parse TSV with quoted multiline cells
+    const rows = [];
+    let i = 0, len = text.length;
+    let row = [], field = '', inQuotes = false;
+    while (i < len) {
+      const ch = text[i];
+      if (ch === '"' && text[i+1] === '"') {
+        field += '"'; i += 2;
+      } else if (ch === '"') {
+        inQuotes = !inQuotes; i++;
+      } else if (!inQuotes && ch === '\t') {
+        row.push(field); field = ''; i++;
+      } else if (!inQuotes && (ch === '\n' || ch === '\r')) {
+        if (ch === '\r' && text[i+1] === '\n') i++;
+        row.push(field); rows.push(row);
+        row = []; field = ''; inQuotes = false; i++;
+      } else {
+        field += ch; i++;
+      }
+    }
+    // push last field
+    if (field !== '' || row.length) {
+      row.push(field);
+      rows.push(row);
+    }
+    const maxCols = rows[0]?.length || 0;
+    const rowsObj = rows.map(cols =>
+      cols.map(value => ({ name: '', value }))
+    );
+    return { columns: maxCols, rows: rowsObj };
   };
 
   useEffect(() => {
@@ -194,6 +332,7 @@ export default function App() {
       } else {
         setImportText(getExportText());
       }
+      setTextModeFormat('text');
     }
   }, [showTextMode, rows, columns]);
 
@@ -202,38 +341,41 @@ export default function App() {
     navigator.clipboard.writeText(textToCopy);
   };
 
-  // Example 5×5 seed in text-mode format
+  // Example 5×5 seed in Markdown-compatible text-mode format (using :: delimiters)
   const exampleText = [
-    '* RT:R1-N',
-    '  - C1-N:R1-C1',
-    '  - C2-N:R1-C2',
-    '  - C3-N:R1-C3',
-    '  - C4-N:R1-C4',
-    '  - C5-N:R1-C5',
-    '* RT:R2-N',
-    '  - C1-N:R2-C1',
-    '  - C2-N:R2-C2',
-    '  - C3-N:R2-C3',
-    '  - C4-N:R2-C4',
-    '  - C5-N:R2-C5',
-    '* RT:R3-N',
-    '  - C1-N:R3-C1',
-    '  - C2-N:R3-C2',
-    '  - C3-N:R3-C3',
-    '  - C4-N:R3-C4',
-    '  - C5-N:R3-C5',
-    '* RT:R4-N',
-    '  - C1-N:R4-C1',
-    '  - C2-N:R4-C2',
-    '  - C3-N:R4-C3',
-    '  - C4-N:R4-C4',
-    '  - C5-N:R4-C5',
-    '* RT:R5-N',
-    '  - C1-N:**Bold Text**',
-    '  - C2-N:*Italic Text*',
-    '  - C3-N:List:\n    - Item A\n    - Item B\n    - Item C',
-    '  - C4-N:> Blockquote example',
-    '  - C5-N:`Inline code sample`'
+    '- RT::R1-N',
+    '  - C1-N:: R1-C1',
+    '  - C2-N:: R1-C2',
+    '  - C3-N:: R1-C3',
+    '  - C4-N:: R1-C4',
+    '  - C5-N:: R1-C5',
+    '- RT::R2-N',
+    '  - C1-N:: R2-C1',
+    '  - C2-N:: R2-C2',
+    '  - C3-N:: R2-C3',
+    '  - C4-N:: R2-C4',
+    '  - C5-N:: R2-C5',
+    '- RT::R3-N',
+    '  - C1-N:: R3-C1',
+    '  - C2-N:: R3-C2',
+    '  - C3-N:: R3-C3',
+    '  - C4-N:: R3-C4',
+    '  - C5-N:: R3-C5',
+    '- RT::R4-N',
+    '  - C1-N:: R4-C1',
+    '  - C2-N:: R4-C2',
+    '  - C3-N:: R4-C3',
+    '  - C4-N:: R4-C4',
+    '  - C5-N:: R4-C5',
+    '- RT::R5-N',
+    '  - C1-N:: **Bold Text**',
+    '  - C2-N:: *Italic Text*',
+    '  - C3-N:: List:',
+    '      - Item A',
+    '      - Item B',
+    '      - Item C',
+    '  - C4-N:: > Blockquote example',
+    '  - C5-N:: `Inline code sample`'
   ].join('\n');
 
   // Handler to paste example into the textarea
@@ -674,20 +816,33 @@ export default function App() {
           onClick={() => {
             if (showTextMode) {
               // exiting text mode
-              if (importText.trim() === '') {
-                // no input to parse: just exit text mode
-                setShowTextMode(false);
-                setShowInvalidModal(false);
+              if (textModeFormat === 'text') {
+                if (importText.trim() === '') {
+                  // no input to parse: just exit text mode
+                  setShowTextMode(false);
+                  setShowInvalidModal(false);
+                } else {
+                  // attempt to parse non-empty text
+                  const result = parseImportText(importText);
+                  if (result) {
+                    setColumns(result.columns);
+                    setRows(result.rows);
+                    setShowTextMode(false);
+                    setShowInvalidModal(false);
+                  } else {
+                    // invalid format: stay in text mode and show modal
+                    setShowInvalidModal(true);
+                  }
+                }
               } else {
-                // attempt to parse non-empty text
-                const result = parseImportText(importText);
-                if (result) {
+                // TSV mode
+                try {
+                  const result = parseImportTSV(importText);
                   setColumns(result.columns);
                   setRows(result.rows);
                   setShowTextMode(false);
                   setShowInvalidModal(false);
-                } else {
-                  // invalid format: stay in text mode and show modal
+                } catch {
                   setShowInvalidModal(true);
                 }
               }
@@ -773,9 +928,43 @@ export default function App() {
         )}
         {showTextMode ? (
           <>
+            <div
+              style={{
+                position: 'absolute',
+                top: 8,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'inline-flex',
+                border: '1px solid #ccc',
+                borderRadius: 4,
+                overflow: 'hidden',
+                fontSize: '0.8em',
+                marginBottom: '4px'
+              }}
+            >
+              {['text','tables'].map((fmt, i) => (
+                <button
+                  key={fmt}
+                  onClick={() => setTextModeFormat(fmt)}
+                  style={{
+                    padding: '4px 8px',
+                    background: textModeFormat === fmt ? '#4d90fe' : '#fff',
+                    color: textModeFormat === fmt ? '#fff' : '#000',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {fmt === 'text' ? 'Text' : 'Tables'}
+                </button>
+              ))}
+            </div>
             <textarea
-              readOnly={!(rows.length === 1 && columns === 1 && rows[0][0].value === '')}
-              value={includeHeaders ? importText : stripHeaders(importText)}
+              readOnly={!(textModeFormat === 'text' && rows.length === 1 && columns === 1 && rows[0][0].value === '')}
+              value={
+                textModeFormat === 'text'
+                  ? (includeHeaders ? importText : stripHeaders(importText))
+                  : getExportTSV()
+              }
               onChange={e => setImportText(e.target.value)}
               style={{ width: '100%', height: 'calc(100% - 40px)', boxSizing: 'border-box' }}
             />
@@ -806,25 +995,27 @@ export default function App() {
                   Paste Example
                 </button>
               </div>
-              <label
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  fontSize: '0.8em',
-                  color: '#666',
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  userSelect: 'none'
-                }}
-              >
-                Include Headers
-                <input
-                  type="checkbox"
-                  checked={includeHeaders}
-                  onChange={() => setIncludeHeaders(!includeHeaders)}
-                  style={{ marginLeft: 4 }}
-                />
-              </label>
+              <div style={{ display: 'flex', alignItems: 'center' }}>
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    fontSize: '0.8em',
+                    color: '#666',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    userSelect: 'none'
+                  }}
+                >
+                  Include Headers
+                  <input
+                    type="checkbox"
+                    checked={includeHeaders}
+                    onChange={() => setIncludeHeaders(!includeHeaders)}
+                    style={{ marginLeft: 4 }}
+                  />
+                </label>
+              </div>
             </div>
             {showClearModal && (
               <div style={{
