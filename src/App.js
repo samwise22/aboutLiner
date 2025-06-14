@@ -277,51 +277,34 @@ export default function App() {
     return lines.join('\n');
   };
 
-  // Export as TSV (tab-separated values)
+  // Export as TSV (tab-separated values), escaping newlines as \n
   const getExportTSV = () => {
-    const escapeCell = (v) => {
-      const val = v || '';
-      if (val.includes('\n') || val.includes('\t') || val.includes('"')) {
-        return `"${val.replace(/"/g, '""')}"`;
-      }
-      return val;
-    };
-    return rows
-      .map(row => row.map(cell => escapeCell(cell.value)).join('\t'))
-      .join('\n');
+    const header = rows[0].map(cell => cell.name || '').join('\t');
+    const data = rows.map(row =>
+      row.map(cell => (cell.value || '').replace(/\n/g, '\\n')).join('\t')
+    ).join('\n');
+    return `${header}\n${data}`;
   };
-  // Parse TSV import
+  // Parse TSV import, unescaping \n to real newlines
   const parseImportTSV = (text) => {
-    // Parse TSV with quoted multiline cells
-    const rows = [];
-    let i = 0, len = text.length;
-    let row = [], field = '', inQuotes = false;
-    while (i < len) {
-      const ch = text[i];
-      if (ch === '"' && text[i+1] === '"') {
-        field += '"'; i += 2;
-      } else if (ch === '"') {
-        inQuotes = !inQuotes; i++;
-      } else if (!inQuotes && ch === '\t') {
-        row.push(field); field = ''; i++;
-      } else if (!inQuotes && (ch === '\n' || ch === '\r')) {
-        if (ch === '\r' && text[i+1] === '\n') i++;
-        row.push(field); rows.push(row);
-        row = []; field = ''; inQuotes = false; i++;
-      } else {
-        field += ch; i++;
+    const lines = text.trim().split(/\r?\n/);
+    if (lines.length < 2) return { columns: 1, rows: [[{ name: '', value: '' }]] };
+
+    const headers = lines[0].split('\t');
+    const body = lines.slice(1).map(line => line.split('\t'));
+
+    const maxCols = headers.length;
+    const resultRows = body.map(line => {
+      const row = [];
+      for (let i = 0; i < maxCols; i++) {
+        const rawValue = line[i] || '';
+        const value = rawValue.replace(/\\n/g, '\n');
+        row.push({ name: headers[i] || '', value });
       }
-    }
-    // push last field
-    if (field !== '' || row.length) {
-      row.push(field);
-      rows.push(row);
-    }
-    const maxCols = rows[0]?.length || 0;
-    const rowsObj = rows.map(cols =>
-      cols.map(value => ({ name: '', value }))
-    );
-    return { columns: maxCols, rows: rowsObj };
+      return row;
+    });
+
+    return { columns: maxCols, rows: resultRows };
   };
 
   useEffect(() => {
@@ -330,11 +313,13 @@ export default function App() {
       if (rows.length === 1 && columns === 1 && rows[0][0].value === '') {
         setImportText('');
       } else {
-        setImportText(getExportText());
+        setImportText(
+          textModeFormat === 'tables' ? getExportTSV() : getExportText()
+        );
       }
-      setTextModeFormat('text');
+      // Optionally, keep textModeFormat unchanged here
     }
-  }, [showTextMode, rows, columns]);
+  }, [showTextMode, rows, columns, textModeFormat]);
 
   const handleCopy = () => {
     const textToCopy = includeHeaders ? importText : stripHeaders(importText);
@@ -815,14 +800,11 @@ export default function App() {
         <button
           onClick={() => {
             if (showTextMode) {
-              // exiting text mode
               if (textModeFormat === 'text') {
                 if (importText.trim() === '') {
-                  // no input to parse: just exit text mode
                   setShowTextMode(false);
                   setShowInvalidModal(false);
                 } else {
-                  // attempt to parse non-empty text
                   const result = parseImportText(importText);
                   if (result) {
                     setColumns(result.columns);
@@ -830,12 +812,10 @@ export default function App() {
                     setShowTextMode(false);
                     setShowInvalidModal(false);
                   } else {
-                    // invalid format: stay in text mode and show modal
                     setShowInvalidModal(true);
                   }
                 }
               } else {
-                // TSV mode
                 try {
                   const result = parseImportTSV(importText);
                   setColumns(result.columns);
@@ -959,12 +939,8 @@ export default function App() {
               ))}
             </div>
             <textarea
-              readOnly={!(textModeFormat === 'text' && rows.length === 1 && columns === 1 && rows[0][0].value === '')}
-              value={
-                textModeFormat === 'text'
-                  ? (includeHeaders ? importText : stripHeaders(importText))
-                  : getExportTSV()
-              }
+              readOnly={!(rows.length === 1 && columns === 1 && rows[0][0].value === '')}
+              value={importText}
               onChange={e => setImportText(e.target.value)}
               style={{ width: '100%', height: 'calc(100% - 40px)', boxSizing: 'border-box' }}
             />
