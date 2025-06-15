@@ -311,18 +311,21 @@ export default function App() {
     setImportText('');
   };
 
-  const getExportText = () => {
+  // Export text mode (outline) as Markdown-style text.
+  // Accepts optional parameters useHeaders and useIds (default to current includeHeaders/includeIds).
+  const getExportText = (useHeaders = includeHeaders, useIds = includeIds) => {
     const lines = [];
     rows.forEach(row => {
       const [first, ...subs] = row;
-      const topLine = (showIds && includeIds)
-        ? `- ${first.id} | ${first.name}:: ${first.value}`
-        : first.name
-          ? `- ${first.name}:: ${first.value}`
-          : `- ${first.value}`;
+      const topLine =
+        (showIds && useIds)
+          ? `- ${first.id} | ${useHeaders && first.name ? `${first.name}:: ` : ''}${first.value}`
+          : useHeaders && first.name
+            ? `- ${first.name}:: ${first.value}`
+            : `- ${first.value}`;
       lines.push(topLine);
       subs.forEach(cell => {
-        const subText = cell.name
+        const subText = useHeaders && cell.name
           ? `${cell.name}:: ${cell.value}`
           : `${cell.value}`;
         const subLines = subText.split('\n');
@@ -336,18 +339,20 @@ export default function App() {
   };
 
   // Export as TSV (tab-separated values), escaping newlines as \n
-  const getExportTSV = () => {
+  // Accepts optional parameters useHeaders and useIds (default to current includeHeaders/includeIds).
+  const getExportTSV = (useHeaders = includeHeaders, useIds = includeIds) => {
     const tsvHeader = [];
     rows[0].forEach((cell, idx) => {
-      if (idx === 0 && showIds && includeIds) tsvHeader.push('ID');
-      tsvHeader.push(cell.name || '');
+      if (idx === 0 && showIds && useIds) tsvHeader.push('ID');
+      if (useHeaders) tsvHeader.push(cell.name || '');
+      else tsvHeader.push('');
     });
     const tsvRows = [];
     tsvRows.push(tsvHeader.join('\t'));
     rows.forEach(row => {
       const line = [];
       row.forEach((cell, idx) => {
-        if (idx === 0 && showIds && includeIds) line.push(cell.id || '');
+        if (idx === 0 && showIds && useIds) line.push(cell.id || '');
         line.push((cell.value || '').replace(/\n/g, '\\n'));
       });
       tsvRows.push(line.join('\t'));
@@ -396,7 +401,9 @@ export default function App() {
         setImportText('');
       } else {
         setImportText(
-          textModeFormat === 'tables' ? getExportTSV() : getExportText()
+          textModeFormat === 'tables'
+            ? getExportTSV(includeHeaders, includeIds)
+            : getExportText(includeHeaders, includeIds)
         );
       }
     } else if (initialisedFromText.current) {
@@ -437,7 +444,7 @@ export default function App() {
       }
       initialisedFromText.current = false;
     }
-  }, [showTextMode]);
+  }, [showTextMode, textModeFormat, includeHeaders, includeIds]);
 
   const handleCopy = () => {
     const textToCopy = includeHeaders ? importText : stripHeaders(importText);
@@ -1784,7 +1791,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.1.3
+      v4.1.4
     </div>
     </>
   );
