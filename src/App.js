@@ -4,10 +4,19 @@ import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 
+// Generate short, human-friendly row ID (e.g. ZEK3)
+const generateRowId = () => {
+  const consonants = 'BCDFGHJKLMNPQRSTVWXYZ';
+  const vowels = 'AEIOU';
+  const rand = (set) => set[Math.floor(Math.random() * set.length)];
+  return `${rand(consonants)}${rand(vowels)}${rand(consonants)}${Math.floor(Math.random() * 10)}`;
+};
+
 const parseImportText = (text) => {
   const lines = text.split('\n');
   const rowsArr = [];
   let current = null;
+  // Do not use includeIds/includeHeaders during parsing; always parse all info
   for (const line of lines) {
     // Handle blank lines => paragraph break in last sub-value
     if (/^\s*$/.test(line) && current && current.subs.length) {
@@ -129,9 +138,33 @@ const parseImportText = (text) => {
       rows.forEach(r => {
         while (r.subs.length < maxSubCount) r.subs.push({ title: '', value: '' });
       });
+      // Parse headers and IDs
+      const parsedHeaders = [rows[0]?.title || '', ...rows[0]?.subs.map(s => s.title) || []];
+      const parsedIds = rows.map(r => {
+        const idMatch = r.title.match(/^([BCDFGHJKLMNPQRSTVWXYZ][AEIOU][BCDFGHJKLMNPQRSTVWXYZ]\d)\s*\|\s*(.*)$/i);
+        return idMatch ? idMatch[1].toUpperCase() : generateRowId();
+      });
       return {
         columns: maxSubCount + 1,
-        rows: rows.map(r => [{ name: r.title, value: r.value }, ...r.subs.map(s => ({ name: s.title, value: s.value }))])
+        rows: rows.map((r, idx) => {
+          let id = parsedIds[idx];
+          let name = '';
+          const idMatch = r.title.match(/^([BCDFGHJKLMNPQRSTVWXYZ][AEIOU][BCDFGHJKLMNPQRSTVWXYZ]\d)\s*\|\s*(.*)$/i);
+          if (idMatch) {
+            name = idMatch[2].trim();
+          } else {
+            name = r.title;
+          }
+          const row = [{
+            id,
+            name,
+            value: r.value
+          }];
+          r.subs.forEach(s => row.push({ name: s.title, value: s.value }));
+          return row;
+        }),
+        parsedHeaders,
+        parsedIds
       };
     }
   }
@@ -145,12 +178,30 @@ const parseImportText = (text) => {
   });
   // Build rows and columns
   const columns = maxSubCount + 1;
-  const rows = rowsArr.map(r => {
-    const row = [{ name: r.title, value: r.value }];
+  // Gather parsed headers (from first row) and parsed IDs (from all rows)
+  const parsedHeaders = [rowsArr[0]?.title || '', ...rowsArr[0]?.subs.map(s => s.title) || []];
+  const parsedIds = rowsArr.map(r => {
+    const idMatch = r.title.match(/^([BCDFGHJKLMNPQRSTVWXYZ][AEIOU][BCDFGHJKLMNPQRSTVWXYZ]\d)\s*\|\s*(.*)$/i);
+    return idMatch ? idMatch[1].toUpperCase() : generateRowId();
+  });
+  const rows = rowsArr.map((r, idx) => {
+    // Always parse for ID and name using regex
+    let id = parsedIds[idx];
+    let parsedName = null;
+    const idMatch = r.title.match(/^([BCDFGHJKLMNPQRSTVWXYZ][AEIOU][BCDFGHJKLMNPQRSTVWXYZ]\d)\s*\|\s*(.*)$/i);
+    if (idMatch) {
+      parsedName = idMatch[2].trim();
+    }
+    let name = parsedName !== null ? parsedName : r.title;
+    const row = [{
+      id,
+      name,
+      value: r.value
+    }];
     r.subs.forEach(sub => row.push({ name: sub.title, value: sub.value }));
     return row;
   });
-  return { columns, rows };
+  return { columns, rows, parsedHeaders, parsedIds };
 };
 
 export default function App() {
@@ -192,8 +243,11 @@ export default function App() {
   // Initial simple outline seed
   const [columns, setColumns] = useState(1);
   const [rows, setRows] = useState([
-    [{ name: '', value: '' }]
+    [{ id: generateRowId(), name: '', value: '' }]
   ]);
+  const [showIds, setShowIds] = useState(true);
+  // New state: includeIds
+  const [includeIds, setIncludeIds] = useState(true);
   const [editingCell, setEditingCell] = useState(null); // key = `${rowIndex}-${colIndex}`
   const inputRefs = useRef({}); // keys: `${rowIndex}-${colIndex}`
   const [pendingDeleteRow, setPendingDeleteRow] = useState(null);
@@ -221,6 +275,7 @@ export default function App() {
   }, [rows, columns]);
   const [tableCopied, setTableCopied] = useState(false);
   const liRefs = useRef([]);
+  const initialisedFromText = useRef(false);
   const [draggingIndex, setDraggingIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const colRefs = useRef([]);
@@ -251,17 +306,20 @@ export default function App() {
   const handleClear = () => {
     // Reset to a single empty top-level row
     setColumns(1);
-    setRows([[{ name: '', value: '' }]]);
+    setRows([[{ id: generateRowId(), name: '', value: '' }]]);
     setShowClearModal(false);
+    setImportText('');
   };
 
   const getExportText = () => {
     const lines = [];
     rows.forEach(row => {
       const [first, ...subs] = row;
-      const topLine = first.name
-        ? `- ${first.name}:: ${first.value}`
-        : `- ${first.value}`;
+      const topLine = (showIds && includeIds)
+        ? `- ${first.id} | ${first.name}:: ${first.value}`
+        : first.name
+          ? `- ${first.name}:: ${first.value}`
+          : `- ${first.value}`;
       lines.push(topLine);
       subs.forEach(cell => {
         const subText = cell.name
@@ -279,11 +337,22 @@ export default function App() {
 
   // Export as TSV (tab-separated values), escaping newlines as \n
   const getExportTSV = () => {
-    const header = rows[0].map(cell => cell.name || '').join('\t');
-    const data = rows.map(row =>
-      row.map(cell => (cell.value || '').replace(/\n/g, '\\n')).join('\t')
-    ).join('\n');
-    return `${header}\n${data}`;
+    const tsvHeader = [];
+    rows[0].forEach((cell, idx) => {
+      if (idx === 0 && showIds && includeIds) tsvHeader.push('ID');
+      tsvHeader.push(cell.name || '');
+    });
+    const tsvRows = [];
+    tsvRows.push(tsvHeader.join('\t'));
+    rows.forEach(row => {
+      const line = [];
+      row.forEach((cell, idx) => {
+        if (idx === 0 && showIds && includeIds) line.push(cell.id || '');
+        line.push((cell.value || '').replace(/\n/g, '\\n'));
+      });
+      tsvRows.push(line.join('\t'));
+    });
+    return tsvRows.join('\n');
   };
   // Parse TSV import, unescaping \n to real newlines
   const parseImportTSV = (text) => {
@@ -294,12 +363,24 @@ export default function App() {
     const body = lines.slice(1).map(line => line.split('\t'));
 
     const maxCols = headers.length;
-    const resultRows = body.map(line => {
+    const resultRows = body.map((line, idx) => {
       const row = [];
       for (let i = 0; i < maxCols; i++) {
         const rawValue = line[i] || '';
         const value = rawValue.replace(/\\n/g, '\n');
-        row.push({ name: headers[i] || '', value });
+        // Only set id for the first cell if the header is 'ID'
+        // (preserve ID if header is 'ID' for TSV import)
+        // if (i === 0 && headers[0].toUpperCase() === 'ID') {
+        if (i === 0 /*&& headers[0].toUpperCase() === 'ID'*/) {
+          if (headers[0].toUpperCase() === 'ID') {
+            const id = typeof value === 'string' && value.length === 4 ? value : generateRowId();
+            row.push({ id, name: headers[i] || '', value });
+          } else {
+            row.push({ name: headers[i] || '', value });
+          }
+        } else {
+          row.push({ name: headers[i] || '', value });
+        }
       }
       return row;
     });
@@ -309,17 +390,54 @@ export default function App() {
 
   useEffect(() => {
     if (showTextMode) {
-      // If document is initially empty, allow typing; otherwise load export text
-      if (rows.length === 1 && columns === 1 && rows[0][0].value === '') {
+      const isEmpty = rows.length === 1 && columns === 1 && rows[0][0].value === '';
+      if (isEmpty) {
+        initialisedFromText.current = true;
         setImportText('');
       } else {
         setImportText(
           textModeFormat === 'tables' ? getExportTSV() : getExportText()
         );
       }
-      // Optionally, keep textModeFormat unchanged here
+    } else if (initialisedFromText.current) {
+      const isEmpty = rows.length === 1 && columns === 1 && rows[0][0].value === '';
+      if (!isEmpty) {
+        initialisedFromText.current = false;
+        return;
+      }
+      let result = textModeFormat === 'tables'
+        ? parseImportTSV(importText)
+        : parseImportText(importText);
+      if (result) {
+        // If includeHeaders is false, override parsedHeaders with blanks
+        let columnsCount = result.columns;
+        let rowsArr = result.rows;
+        let parsedHeaders = result.parsedHeaders || [];
+        let parsedIds = result.parsedIds || [];
+        // For text mode, if includeHeaders is false, blank header names
+        if (!includeHeaders && rowsArr.length > 0) {
+          // Blank out all cell.name in first row, and propagate to all rows
+          rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
+            ...cell,
+            name: ''
+          })));
+          parsedHeaders = Array(columnsCount).fill('');
+        }
+        // If includeIds is false, regenerate IDs for all rows
+        if (!includeIds && rowsArr.length > 0) {
+          rowsArr = rowsArr.map(row => [
+            { ...row[0], id: generateRowId() },
+            ...row.slice(1)
+          ]);
+          parsedIds = rowsArr.map(row => row[0].id);
+        }
+        setColumns(columnsCount);
+        setRows(rowsArr);
+        // Optionally store parsedHeaders/parsedIds if needed elsewhere
+      }
+      initialisedFromText.current = false;
     }
-  }, [showTextMode, rows, columns, textModeFormat]);
+  }, [showTextMode]);
 
   const handleCopy = () => {
     const textToCopy = includeHeaders ? importText : stripHeaders(importText);
@@ -365,6 +483,7 @@ export default function App() {
 
   // Handler to paste example into the textarea
   const handlePasteExample = () => {
+    initialisedFromText.current = true;
     setImportText(exampleText);
   };
 
@@ -405,8 +524,12 @@ export default function App() {
     `;
     let html = styleBlock + '<table><thead>';
     html += '<tr>';
+    let includeId = showIds;
     // Column headers: Title then sub-headers
     rows[0].forEach((cell, idx) => {
+      if (idx === 0 && includeId) {
+        html += `<th>ID</th>`;
+      }
       if (idx === 0) {
         html += `<th>${cell.name || 'Title'}</th>`;
       } else {
@@ -417,6 +540,9 @@ export default function App() {
     // Table body rows
     rows.forEach(row => {
       html += '<tr>';
+      if (includeId) {
+        html += `<td style="font-size:0.75em;font-family:monospace;color:#666;">${row[0].id}</td>`;
+      }
       row.forEach((cell, cIdx) => {
         if (cIdx === 0) {
           html += `<td>${cell.value || ''}</td>`;
@@ -433,14 +559,18 @@ export default function App() {
     const tsvRows = [];
     // Header row: just column names
     const tsvHeader = [];
-    rows[0].forEach(cell => {
+    rows[0].forEach((cell, idx) => {
+      if (idx === 0 && showIds) tsvHeader.push('ID');
       tsvHeader.push(cell.name || '');
     });
     tsvRows.push(tsvHeader.join('\t'));
     // Body rows
     rows.forEach(row => {
       const line = [];
-      row.forEach(cell => line.push(cell.value || ''));
+      row.forEach((cell, idx) => {
+        if (idx === 0 && showIds) line.push(cell.id || '');
+        line.push(cell.value || '');
+      });
       tsvRows.push(line.join('\t'));
     });
     const tsv = tsvRows.join('\n');
@@ -488,6 +618,7 @@ export default function App() {
       name: cell.name,    // inherit name for every column
       value: ''           // empty value
     }));
+    newRow[0].id = generateRowId();
     setRows((prevRows) => {
       const newRows = [...prevRows];
       newRows.splice(rowIndex + 1, 0, newRow);
@@ -499,6 +630,10 @@ export default function App() {
   // Update a single cell field (name or value), with column name propagation
   const updateCell = (rowIndex, colIndex, field, value) => {
     setRows((prevRows) => {
+      // Prevent editing the id field
+      if (field === 'id') {
+        return prevRows; // Disallow editing the ID
+      }
       // If editing a column name, sync across all rows
       if (field === 'name') {
         return prevRows.map((row) =>
@@ -780,6 +915,7 @@ export default function App() {
   };
 
   return (
+    <>
     <div className="app-container" style={{ position: 'relative', paddingTop: 80 }}>
       <div style={{ position: 'absolute', top: 16, left: 16 }}>
         <img src={logo} alt="aboutLiner logo" style={{ height: 56, pointerEvents: 'none' }} />
@@ -801,35 +937,91 @@ export default function App() {
           onClick={() => {
             if (showTextMode) {
               if (textModeFormat === 'text') {
-                if (importText.trim() === '') {
-                  setShowTextMode(false);
-                  setShowInvalidModal(false);
-                } else {
-                  const result = parseImportText(importText);
-                  if (result) {
-                    setColumns(result.columns);
-                    setRows(result.rows);
-                    setShowTextMode(false);
-                    setShowInvalidModal(false);
-                  } else {
-                    setShowInvalidModal(true);
-                  }
-                }
-              } else {
-                try {
-                  const result = parseImportTSV(importText);
-                  setColumns(result.columns);
-                  setRows(result.rows);
-                  setShowTextMode(false);
-                  setShowInvalidModal(false);
-                } catch {
-                  setShowInvalidModal(true);
-                }
-              }
-            } else {
-              setShowTextMode(true);
+                const isBlank = rows.length === 1 && columns === 1 && rows[0][0].value === '';
+        if (!isBlank) {
+          setShowTextMode(false);
+          setShowInvalidModal(false);
+          return;
+        }
+        if (importText.trim() === '') {
+          setShowTextMode(false);
+          setShowInvalidModal(false);
+        } else {
+          // Parse input text and apply header/id logic after parsing
+          let result = parseImportText(importText);
+          if (result) {
+            let columnsCount = result.columns;
+            let rowsArr = result.rows;
+            let parsedHeaders = result.parsedHeaders || [];
+            let parsedIds = result.parsedIds || [];
+            // If includeHeaders is false, blank out header names
+            if (!includeHeaders && rowsArr.length > 0) {
+              rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
+                ...cell,
+                name: ''
+              })));
+              parsedHeaders = Array(columnsCount).fill('');
             }
-          }}
+            // If includeIds is false, regenerate IDs
+            if (!includeIds && rowsArr.length > 0) {
+              rowsArr = rowsArr.map(row => [
+                { ...row[0], id: generateRowId() },
+                ...row.slice(1)
+              ]);
+              parsedIds = rowsArr.map(row => row[0].id);
+            }
+            setColumns(columnsCount);
+            setRows(rowsArr);
+            initialisedFromText.current = true;
+            setShowTextMode(false);
+            setShowInvalidModal(false);
+          } else {
+            setShowInvalidModal(true);
+          }
+        }
+      } else {
+        const isBlank = rows.length === 1 && columns === 1 && rows[0][0].value === '';
+        if (!isBlank) {
+          setShowTextMode(false);
+          setShowInvalidModal(false);
+          return;
+        }
+        try {
+          // Parse TSV and apply header/id logic after parsing
+          let result = parseImportTSV(importText);
+          if (result) {
+            let columnsCount = result.columns;
+            let rowsArr = result.rows;
+            // If includeHeaders is false, blank out header names
+            if (!includeHeaders && rowsArr.length > 0) {
+              rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
+                ...cell,
+                name: ''
+              })));
+            }
+            // If includeIds is false, regenerate IDs
+            if (!includeIds && rowsArr.length > 0) {
+              rowsArr = rowsArr.map(row => [
+                { ...row[0], id: generateRowId() },
+                ...row.slice(1)
+              ]);
+            }
+            setColumns(columnsCount);
+            setRows(rowsArr);
+            initialisedFromText.current = true;
+            setShowTextMode(false);
+            setShowInvalidModal(false);
+          } else {
+            setShowInvalidModal(true);
+          }
+        } catch {
+          setShowInvalidModal(true);
+        }
+      }
+    } else {
+      setShowTextMode(true);
+    }
+  }}
           style={{
             position: 'absolute',
             top: 8,
@@ -842,6 +1034,29 @@ export default function App() {
         >
           {'</>'}
         </button>
+        {/* Toggle IDs button */}
+        {!showTextMode && (
+          <button
+            onClick={() => setShowIds(!showIds)}
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 60,
+              padding: '4px',
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer'
+            }}
+            title="Toggle IDs"
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontSize: '16px', color: showIds ? '#000' : '#ccc' }}
+            >
+              badge
+            </span>
+          </button>
+        )}
         {/* Reorder mode toggle */}
         {!showTextMode && (
           <button
@@ -971,7 +1186,7 @@ export default function App() {
                   Paste Example
                 </button>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                 <label
                   style={{
                     display: 'inline-flex',
@@ -980,7 +1195,9 @@ export default function App() {
                     color: '#666',
                     cursor: 'pointer',
                     whiteSpace: 'nowrap',
-                    userSelect: 'none'
+                    userSelect: 'none',
+                    marginBottom: 4,
+                    textAlign: 'right'
                   }}
                 >
                   Include Headers
@@ -991,6 +1208,28 @@ export default function App() {
                     style={{ marginLeft: 4 }}
                   />
                 </label>
+                {showIds && (
+                  <label
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      fontSize: '0.8em',
+                      color: '#666',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      userSelect: 'none',
+                      textAlign: 'right'
+                    }}
+                  >
+                    Include IDs
+                    <input
+                      type="checkbox"
+                      checked={includeIds}
+                      onChange={() => setIncludeIds(!includeIds)}
+                      style={{ marginLeft: 4 }}
+                    />
+                  </label>
+                )}
               </div>
             </div>
             {showClearModal && (
@@ -1419,6 +1658,7 @@ export default function App() {
         <table>
           <thead>
             <tr>
+              {showIds && <th style={{ fontSize: '0.75em', color: '#888' }}>ID</th>}
               {rows[0].map((cell, idx) => (
                 <th
                   key={idx}
@@ -1458,6 +1698,11 @@ export default function App() {
           <tbody>
             {rows.map((row, rIdx) => (
               <tr key={rIdx}>
+                {showIds && (
+                  <td style={{ fontSize: '0.75em', fontFamily: 'monospace', color: '#666' }}>
+                    {row[0].id}
+                  </td>
+                )}
                 {row.map((cell, cIdx) => (
                   <td
                     key={cIdx}
@@ -1533,5 +1778,14 @@ export default function App() {
         </button>
       </div>
     </div>
+    <div style={{
+      textAlign: 'center',
+      fontSize: '0.75em',
+      color: '#888',
+      marginTop: '16px'
+    }}>
+      v4.1.3
+    </div>
+    </>
   );
 }
