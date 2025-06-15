@@ -1,4 +1,4 @@
-//v 4.0.1
+//v4.2.0
 import React, { useState, useRef, useEffect } from 'react';
 import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
@@ -216,10 +216,10 @@ export default function App() {
     || function(tokens, idx, options, env, self) {
          return self.renderToken(tokens, idx, options);
        };
-  // Inject inline styles on <li> to collapse vertical spacing
+  // Inject inline styles on <li> to collapse vertical spacing and adjust spacing for Apple Notes compatibility
   md.renderer.rules.list_item_open = (tokens, idx, options, env, self) => {
-    // Add inline style to collapse margins/padding and tighten lines
-    tokens[idx].attrPush(['style', 'margin:0;padding:0;line-height:1;']);
+    // Add inline style to collapse margins/padding and adjust left indent/line spacing for Apple Notes clarity
+    tokens[idx].attrPush(['style', 'margin:0 0 0 1em;padding:0;line-height:1.2;']);
     return defaultListItemOpen(tokens, idx, options, env, self);
   };
   // Bullet list (ul) margin/padding collapse
@@ -354,6 +354,27 @@ export default function App() {
       row.forEach((cell, idx) => {
         if (idx === 0 && showIds && useIds) line.push(cell.id || '');
         line.push((cell.value || '').replace(/\n/g, '\\n'));
+      });
+      tsvRows.push(line.join('\t'));
+    });
+    return tsvRows.join('\n');
+  };
+
+  // Export TSV with real newlines, for human-readable TSV (TSV Rich)
+  const getExportTSVRich = (useHeaders = includeHeaders, useIds = includeIds) => {
+    const tsvHeader = [];
+    rows[0].forEach((cell, idx) => {
+      if (idx === 0 && showIds && useIds) tsvHeader.push('ID');
+      if (useHeaders) tsvHeader.push(cell.name || '');
+      else tsvHeader.push('');
+    });
+    const tsvRows = [];
+    tsvRows.push(tsvHeader.join('\t'));
+    rows.forEach(row => {
+      const line = [];
+      row.forEach((cell, idx) => {
+        if (idx === 0 && showIds && useIds) line.push(cell.id || '');
+        line.push(cell.value || '');
       });
       tsvRows.push(line.join('\t'));
     });
@@ -494,111 +515,124 @@ export default function App() {
     setImportText(exampleText);
   };
 
-  // Generate markdown table from current rows and columns
-  const getTableMarkdown = () => {
-    // Headers from column names
+  // Generate Rich HTML table from current rows and columns, rendering Markdown
+  const getTableHTML = () => {
     const headers = rows[0].map((cell, idx) =>
       cell.name || (idx === 0 ? 'Title' : `Column ${idx}`)
     );
-    // Separator row
-    const separator = headers.map(() => '---');
-    // Body rows values
-    const bodyRows = rows.map(row => row.map(cell => cell.value || ''));
-    // Build markdown lines
-    const lines = [];
-    lines.push(`| ${headers.join(' | ')} |`);
-    lines.push(`| ${separator.join(' | ')} |`);
-    bodyRows.forEach(r => lines.push(`| ${r.join(' | ')} |`));
-    return lines.join('\n');
+    const thead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
+    const tbody = rows.map(row => {
+      const cells = row.map(cell => {
+        const rendered = md.render(cell.value || '')
+          .replace(/^<p>(?!- )/, '') // Only strip <p> if not followed by "- "
+          .replace(/<\/p>\n?$/, '')
+          .replace(/<p>(- .+?)<\/p>/g, '$1'); // Remove <p> wrapping list items
+        return `<td>${rendered}</td>`;
+      });
+      return `<tr>${cells.join('')}</tr>`;
+    }).join('');
+    return `<table>${thead}<tbody>${tbody}</tbody></table>`;
   };
 
-  // Copy the table to clipboard as a flat HTML table and TSV
-  const handleCopyTable = async () => {
-    // Include inline CSS for export
-    const styleBlock = `
-      <style>
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ddd; padding: 4px 8px; vertical-align: middle; }
-        .column-header-pill { border-radius: 999px; padding: 4px 12px; color: #333; display: inline-block; }
-        /* Define background colors matching var(--col-color-N) */
-        .column-header-pill:nth-of-type(2) { background: #e0f7fa; }
-        .column-header-pill:nth-of-type(3) { background: #ffe0b2; }
-        .column-header-pill:nth-of-type(4) { background: #e1bee7; }
-        .column-header-pill:nth-of-type(5) { background: #c8e6c9; }
-        .markdown-cell a { color: #4d90fe; text-decoration: underline; }
-        .markdown-cell ul, .markdown-cell ol { margin: 0; padding-left: 1em; }
-      </style>
-    `;
-    let html = styleBlock + '<table><thead>';
+  // Generate Plain HTML table with inline styles, no thead/tbody, for Apple Notes/email
+  const getPlainHTML = () => {
+    // Inline styles for table, th, td
+    const tableStyle = 'border-collapse:collapse;border:1px solid #888;font-family:sans-serif;font-size:12px;';
+    const thStyle = 'border:1px solid #888;padding:4px 8px;background:#f5f5f5;font-weight:bold;';
+    const tdStyle = 'border:1px solid #888;padding:4px 8px;';
+    let html = `<table style="${tableStyle}">`;
+    // Header row
     html += '<tr>';
-    let includeId = showIds;
-    // Column headers: Title then sub-headers
     rows[0].forEach((cell, idx) => {
-      if (idx === 0 && includeId) {
-        html += `<th>ID</th>`;
-      }
-      if (idx === 0) {
-        html += `<th>${cell.name || 'Title'}</th>`;
-      } else {
-        html += `<th><span class="column-header-pill">${cell.name || ''}</span></th>`;
-      }
+      html += `<td style="${thStyle}">${cell.name || (idx === 0 ? 'Title' : `Column ${idx}`)}</td>`;
     });
-    html += '</tr></thead><tbody>';
-    // Table body rows
-    rows.forEach(row => {
+    html += '</tr>';
+    // Data rows
+    rows.forEach((row, rIdx) => {
+      if (rIdx === 0) return; // skip header row
       html += '<tr>';
-      if (includeId) {
-        html += `<td style="font-size:0.75em;font-family:monospace;color:#666;">${row[0].id}</td>`;
-      }
-      row.forEach((cell, cIdx) => {
-        if (cIdx === 0) {
-          html += `<td>${cell.value || ''}</td>`;
-        } else {
-          const rendered = DOMPurify.sanitize(md.render(cell.value || ''));
-          html += `<td><div class="markdown-cell">${rendered}</div></td>`;
-        }
+      row.forEach(cell => {
+        html += `<td style="${tdStyle}">${(cell.value || '').replace(/\n/g, '<br>')}</td>`;
       });
       html += '</tr>';
     });
-    html += '</tbody></table>';
+    html += '</table>';
+    return html;
+  };
 
-    // Build TSV (tab-separated values)
-    const tsvRows = [];
-    // Header row: just column names
-    const tsvHeader = [];
-    rows[0].forEach((cell, idx) => {
-      if (idx === 0 && showIds) tsvHeader.push('ID');
-      tsvHeader.push(cell.name || '');
-    });
-    tsvRows.push(tsvHeader.join('\t'));
-    // Body rows
-    rows.forEach(row => {
-      const line = [];
-      row.forEach((cell, idx) => {
-        if (idx === 0 && showIds) line.push(cell.id || '');
-        line.push(cell.value || '');
-      });
-      tsvRows.push(line.join('\t'));
-    });
-    const tsv = tsvRows.join('\n');
+  // Modal state and format for copy table modal
+  const [copyModalVisible, setCopyModalVisible] = useState(false);
+  // Update default format to 'htmlRich'
+  const [copyFormat, setCopyFormat] = useState('htmlRich'); // 'htmlRich' | 'htmlPlain' | 'tsvEscaped' | 'tsvRich' | 'ascii'
 
-    // Write both to clipboard
-    if (navigator.clipboard && navigator.clipboard.write) {
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({
-            'text/html': new Blob([html], { type: 'text/html' }),
-            'text/plain': new Blob([tsv], { type: 'text/plain' })
-          })
-        ]);
-      } catch {
-        await navigator.clipboard.writeText(tsv);
+  // Handler to open copy modal and set default format
+  const handleCopyTable = () => {
+    setCopyModalVisible(true);
+    setCopyFormat('htmlRich');
+  };
+
+  // Export ASCII-art table (handles embedded Markdown lists and multiline cells)
+  const getExportASCII = () => {
+    // Prepare column names
+    const columnNames = rows[0].map((cell, idx) =>
+      idx === 0 ? (showIds ? 'ID' : 'Title') : cell.name || `Col ${idx}`
+    );
+    // Prepare data rows (array of arrays of string)
+    const dataRows = rows.map(row =>
+      row.map((cell, idx) =>
+        idx === 0 && showIds ? `${cell.id}` : (cell.value || '')
+      )
+    );
+    // All rows, including header
+    const allRows = [columnNames, ...dataRows];
+
+    // Expand cells with line breaks into arrays of lines
+    const expandedRows = allRows.map(row =>
+      row.map(cell => (cell || '').split('\n'))
+    );
+
+    // For each row, determine the max number of lines in any cell
+    const rowHeights = expandedRows.map(row =>
+      Math.max(...row.map(lines => lines.length))
+    );
+
+    // Pad each cell in each row so all cells have the same number of lines as the row's height
+    const normalizedRows = expandedRows.map((row, rowIdx) =>
+      row.map(lines => {
+        const height = rowHeights[rowIdx];
+        const padded = [...lines];
+        while (padded.length < height) padded.push('');
+        return padded;
+      })
+    );
+
+    // Flatten normalizedRows so that each logical row becomes multiple visual rows
+    const visualRows = [];
+    for (let i = 0; i < normalizedRows.length; i++) {
+      const height = rowHeights[i];
+      for (let j = 0; j < height; j++) {
+        visualRows.push(normalizedRows[i].map(cellLines => cellLines[j]));
       }
-    } else {
-      await navigator.clipboard.writeText(tsv);
     }
-    setTableCopied(true);
-    setTimeout(() => setTableCopied(false), 1000);
+
+    // Column widths: for each column, find the max width among all lines in that column
+    const colWidths = columnNames.map((_, colIdx) =>
+      Math.max(...visualRows.map(r => (r[colIdx] || '').length))
+    );
+
+    // Row rendering helpers
+    const makeRow = row =>
+      '| ' + row.map((cell, i) => (cell || '').padEnd(colWidths[i])).join(' | ') + ' |';
+    const sepRow = '+-' + colWidths.map(w => '-'.repeat(w)).join('-+-') + '-+';
+
+    // Output: header separator, header, separator, body, separator
+    return [
+      sepRow,
+      makeRow(columnNames),
+      sepRow,
+      ...visualRows.slice(1).map(makeRow),
+      sepRow
+    ].join('\n');
   };
   const pendingDeleteColTimer = useRef(null);
 
@@ -945,90 +979,90 @@ export default function App() {
             if (showTextMode) {
               if (textModeFormat === 'text') {
                 const isBlank = rows.length === 1 && columns === 1 && rows[0][0].value === '';
-        if (!isBlank) {
-          setShowTextMode(false);
-          setShowInvalidModal(false);
-          return;
-        }
-        if (importText.trim() === '') {
-          setShowTextMode(false);
-          setShowInvalidModal(false);
-        } else {
-          // Parse input text and apply header/id logic after parsing
-          let result = parseImportText(importText);
-          if (result) {
-            let columnsCount = result.columns;
-            let rowsArr = result.rows;
-            let parsedHeaders = result.parsedHeaders || [];
-            let parsedIds = result.parsedIds || [];
-            // If includeHeaders is false, blank out header names
-            if (!includeHeaders && rowsArr.length > 0) {
-              rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
-                ...cell,
-                name: ''
-              })));
-              parsedHeaders = Array(columnsCount).fill('');
+                if (!isBlank) {
+                  setShowTextMode(false);
+                  setShowInvalidModal(false);
+                  return;
+                }
+                if (importText.trim() === '') {
+                  setShowTextMode(false);
+                  setShowInvalidModal(false);
+                } else {
+                  // Parse input text and apply header/id logic after parsing
+                  let result = parseImportText(importText);
+                  if (result) {
+                    let columnsCount = result.columns;
+                    let rowsArr = result.rows;
+                    let parsedHeaders = result.parsedHeaders || [];
+                    let parsedIds = result.parsedIds || [];
+                    // If includeHeaders is false, blank out header names
+                    if (!includeHeaders && rowsArr.length > 0) {
+                      rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
+                        ...cell,
+                        name: ''
+                      })));
+                      parsedHeaders = Array(columnsCount).fill('');
+                    }
+                    // If includeIds is false, regenerate IDs
+                    if (!includeIds && rowsArr.length > 0) {
+                      rowsArr = rowsArr.map(row => [
+                        { ...row[0], id: generateRowId() },
+                        ...row.slice(1)
+                      ]);
+                      parsedIds = rowsArr.map(row => row[0].id);
+                    }
+                    setColumns(columnsCount);
+                    setRows(rowsArr);
+                    initialisedFromText.current = true;
+                    setShowTextMode(false);
+                    setShowInvalidModal(false);
+                  } else {
+                    setShowInvalidModal(true);
+                  }
+                }
+              } else {
+                const isBlank = rows.length === 1 && columns === 1 && rows[0][0].value === '';
+                if (!isBlank) {
+                  setShowTextMode(false);
+                  setShowInvalidModal(false);
+                  return;
+                }
+                try {
+                  // Parse TSV and apply header/id logic after parsing
+                  let result = parseImportTSV(importText);
+                  if (result) {
+                    let columnsCount = result.columns;
+                    let rowsArr = result.rows;
+                    // If includeHeaders is false, blank out header names
+                    if (!includeHeaders && rowsArr.length > 0) {
+                      rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
+                        ...cell,
+                        name: ''
+                      })));
+                    }
+                    // If includeIds is false, regenerate IDs
+                    if (!includeIds && rowsArr.length > 0) {
+                      rowsArr = rowsArr.map(row => [
+                        { ...row[0], id: generateRowId() },
+                        ...row.slice(1)
+                      ]);
+                    }
+                    setColumns(columnsCount);
+                    setRows(rowsArr);
+                    initialisedFromText.current = true;
+                    setShowTextMode(false);
+                    setShowInvalidModal(false);
+                  } else {
+                    setShowInvalidModal(true);
+                  }
+                } catch {
+                  setShowInvalidModal(true);
+                }
+              }
+            } else {
+              setShowTextMode(true);
             }
-            // If includeIds is false, regenerate IDs
-            if (!includeIds && rowsArr.length > 0) {
-              rowsArr = rowsArr.map(row => [
-                { ...row[0], id: generateRowId() },
-                ...row.slice(1)
-              ]);
-              parsedIds = rowsArr.map(row => row[0].id);
-            }
-            setColumns(columnsCount);
-            setRows(rowsArr);
-            initialisedFromText.current = true;
-            setShowTextMode(false);
-            setShowInvalidModal(false);
-          } else {
-            setShowInvalidModal(true);
-          }
-        }
-      } else {
-        const isBlank = rows.length === 1 && columns === 1 && rows[0][0].value === '';
-        if (!isBlank) {
-          setShowTextMode(false);
-          setShowInvalidModal(false);
-          return;
-        }
-        try {
-          // Parse TSV and apply header/id logic after parsing
-          let result = parseImportTSV(importText);
-          if (result) {
-            let columnsCount = result.columns;
-            let rowsArr = result.rows;
-            // If includeHeaders is false, blank out header names
-            if (!includeHeaders && rowsArr.length > 0) {
-              rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
-                ...cell,
-                name: ''
-              })));
-            }
-            // If includeIds is false, regenerate IDs
-            if (!includeIds && rowsArr.length > 0) {
-              rowsArr = rowsArr.map(row => [
-                { ...row[0], id: generateRowId() },
-                ...row.slice(1)
-              ]);
-            }
-            setColumns(columnsCount);
-            setRows(rowsArr);
-            initialisedFromText.current = true;
-            setShowTextMode(false);
-            setShowInvalidModal(false);
-          } else {
-            setShowInvalidModal(true);
-          }
-        } catch {
-          setShowInvalidModal(true);
-        }
-      }
-    } else {
-      setShowTextMode(true);
-    }
-  }}
+          }}
           style={{
             position: 'absolute',
             top: 8,
@@ -1039,7 +1073,7 @@ export default function App() {
             cursor: 'pointer'
           }}
         >
-          {'</>'}
+          {'<t>'}
         </button>
         {/* Toggle IDs button */}
         {!showTextMode && (
@@ -1057,10 +1091,15 @@ export default function App() {
             title="Toggle IDs"
           >
             <span
-              className="material-symbols-outlined"
-              style={{ fontSize: '16px', color: showIds ? '#000' : '#ccc' }}
+              style={{
+                fontSize: '13px',
+                fontWeight: '600',
+                color: showIds ? '#000' : '#ccc',
+                fontFamily: 'sans-serif',
+                letterSpacing: '0.5px'
+              }}
             >
-              badge
+              ID
             </span>
           </button>
         )}
@@ -1156,7 +1195,7 @@ export default function App() {
                     cursor: 'pointer'
                   }}
                 >
-                  {fmt === 'text' ? 'Text' : 'Tables'}
+                  {fmt === 'text' ? 'Text' : 'Table'}
                 </button>
               ))}
             </div>
@@ -1781,17 +1820,133 @@ export default function App() {
             cursor: 'pointer'
           }}
         >
-          {tableCopied ? 'Copied!' : 'Copy Table'}
+          Copy Table
         </button>
       </div>
     </div>
+    {/* Copy Table Modal */}
+    {copyModalVisible && (
+      <div style={{
+        position: 'fixed',
+        top: 0, left: 0,
+        width: '100%',
+        height: '100%',
+        background: 'rgba(0, 0, 0, 0.5)',
+        zIndex: 9999,
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center'
+      }}>
+        <div style={{
+          background: '#fff',
+          padding: '24px',
+          borderRadius: '8px',
+          width: '90%',
+          maxWidth: '600px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.3)',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{ marginBottom: 8 }}>
+            {[
+              { key: 'htmlRich', label: 'HTML' },
+              { key: 'tsvEscaped', label: 'TSV' },
+              { key: 'ascii', label: 'ASCII' }
+            ].map(fmt => (
+              <button
+                key={fmt.key}
+                onClick={() => setCopyFormat(fmt.key)}
+                style={{
+                  padding: '4px 8px',
+                  marginRight: 4,
+                  background: copyFormat === fmt.key ? '#4d90fe' : '#fff',
+                  color: copyFormat === fmt.key ? '#fff' : '#000',
+                  border: '1px solid #ccc',
+                  borderRadius: 4
+                }}
+              >
+                {fmt.label}
+              </button>
+            ))}
+          </div>
+          <pre
+            style={{
+              width: '100%',
+              height: 200,
+              overflowX: 'auto',
+              overflowY: 'scroll',
+              whiteSpace:
+                copyFormat === 'htmlRich'
+                  ? 'pre-line'
+                  : 'pre',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              background: '#f9f9f9',
+              border: '1px solid #ccc',
+              padding: '8px'
+            }}
+          >
+            {
+              copyFormat === 'htmlRich'
+                ? getTableHTML()
+                : copyFormat === 'tsvEscaped'
+                ? getExportTSV()
+                : getExportASCII()
+            }
+          </pre>
+          <div style={{ fontSize: '0.8em', color: '#555', marginTop: 8 }}>
+            {{
+              htmlRich: 'The most compatible format with full styling and structure. Works across Word, Excel, Confluence, Dropbox Paper, and Apple Notes.',
+              tsvEscaped: 'Structured TSV ideal for spreadsheets and re-importing. Escaped newlines preserve data integrity.',
+              ascii: 'Simple text-based table for plain environments like code snippets or terminals.'
+            }[copyFormat]}
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <button
+              className="btn btn-primary"
+              onClick={async (e) => {
+                const text =
+                  copyFormat === 'htmlRich'
+                    ? getTableHTML()
+                    : copyFormat === 'tsvEscaped'
+                    ? getExportTSV()
+                    : getExportASCII();
+                if (copyFormat === 'htmlRich') {
+                  // Write as HTML to clipboard using Clipboard API
+                  const html = getTableHTML();
+                  const blob = new Blob([html], { type: 'text/html' });
+                  const item = new window.ClipboardItem({ 'text/html': blob });
+                  await navigator.clipboard.write([item]);
+                } else {
+                  await navigator.clipboard.writeText(text);
+                }
+                const originalText = e.target.textContent;
+                e.target.textContent = 'Copied!';
+                setTimeout(() => {
+                  e.target.textContent = originalText;
+                  setCopyModalVisible(false);
+                }, 1000);
+              }}
+            >
+              Copy
+            </button>
+            <button
+              style={{ marginLeft: 8 }}
+              onClick={() => setCopyModalVisible(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <div style={{
       textAlign: 'center',
       fontSize: '0.75em',
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.1.4
+      v4.2.0
     </div>
     </>
   );
