@@ -689,7 +689,8 @@ export default function App() {
       newRows.splice(rowIndex + 1, 0, newRow);
       return newRows;
     });
-    // We'll focus in the onUpdate or after insert
+    // Focus the value field of the newly inserted Level 1 row
+    setTimeout(() => focusInput(rowIndex + 1, 0, 'value'), 0);
   };
 
   // Update a single cell field (name or value), with column name propagation
@@ -1120,6 +1121,75 @@ export default function App() {
   };
 
   // --- End quickfill logic ---
+
+  // --- Global keyboard shortcuts ---
+  useEffect(() => {
+    const handleGlobalKeyDown = (e) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const meta = isMac ? e.metaKey : e.ctrlKey;
+
+      if (e.key === 'Escape') {
+        if (copyModalVisible) setCopyModalVisible(false);
+        if (quickfillState.open) closeQuickfill();
+        if (pendingDeleteRow !== null) setPendingDeleteRow(null);
+        if (pendingDeleteCol !== null) setPendingDeleteCol(null);
+        return;
+      }
+
+      // Cmd/Ctrl + Enter → Insert row below current
+      if (meta && e.key === 'Enter') {
+        e.preventDefault();
+        if (focusedCell.row != null) insertRow(focusedCell.row);
+      }
+
+      // Cmd/Ctrl + Shift + . → Trigger quickfill for column
+      if (meta && e.shiftKey && e.key === '.') {
+        e.preventDefault();
+        if (focusedCell.row != null && focusedCell.col != null) {
+          const rowIdx = focusedCell.row;
+          const colIdx = focusedCell.col;
+          const value = rows[rowIdx][colIdx].value;
+          const opts = getQuickfillOptions(colIdx, rowIdx);
+          if (value === '' && opts.length > 0) {
+            openQuickfill(rowIdx, colIdx);
+          }
+        }
+      }
+
+      // Cmd/Ctrl + Shift + C → Open copy modal
+      if (meta && e.shiftKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault();
+        handleCopyTable();
+      }
+
+      // Cmd/Ctrl + Shift + E → Toggle text mode
+      if (meta && e.shiftKey && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setShowTextMode((prev) => !prev);
+      }
+
+      // Cmd/Ctrl + Shift + R → Toggle reorder mode
+      if (meta && e.shiftKey && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        setReorderMode((prev) => !prev);
+      }
+
+      // Cmd/Ctrl + Left or Right → Jump between name and value
+      if (meta && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const { row, col } = focusedCell;
+        if (row == null || col == null) return;
+        if (e.key === 'ArrowLeft') {
+          focusInput(row, col, 'name');
+        } else {
+          focusInput(row, col, 'value');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [focusedCell, rows, showTextMode, quickfillState, copyModalVisible]);
   // Each top-level <li> has input for row label (col 0)
   // If columns > 1, nested <ul> with inputs for sub-cells (col 1..)
   // Reorder mode state
@@ -2308,7 +2378,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.3.0
+      v4.3.1
     </div>
     </>
   );
