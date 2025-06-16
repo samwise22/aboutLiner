@@ -791,10 +791,11 @@ export default function App() {
             .slice(0, newColumns);
           // Promote the sub-bullet label (which is empty here) to a new row label
           const parentLabel = prevRows[rowIndex][colIndex];
-          // Build the promoted row with inherited names
+          // Build the promoted row with inherited names, and assign a unique id to the new top-level row
           const promotedRow = headerNames.map((colName, idx) => ({
             name: colName,
-            value: idx === 0 ? parentLabel.value : ''
+            value: idx === 0 ? parentLabel.value : '',
+            ...(idx === 0 ? { id: generateRowId() } : {})
           }));
           newRows.splice(rowIndex + 1, 0, promotedRow);
           return newRows;
@@ -903,7 +904,222 @@ export default function App() {
     }
   };
 
-  // Render outline <ul>
+  // --- Quickfill dropdown state and logic ---
+  const [quickfillState, setQuickfillState] = useState({
+    colIndex: null,
+    rowIndex: null,
+    open: false,
+    selectedIndex: 0
+  });
+
+  // Compute quickfill options for current quickfillState
+  // Helper: known sets and aliases for quickfill sorting
+  const quickfillKnownSets = [
+    {
+      name: 'Severity',
+      set: ['Critical', 'High', 'Medium', 'Low'],
+      aliases: { 'Urgent': 'Critical', 'Blocker': 'Critical', 'Major': 'High', 'Minor': 'Low' },
+      aliasesForColumn: ['Urgent', 'Blocker', 'Major', 'Minor']
+    },
+    {
+      name: 'Priority',
+      set: ['High', 'Medium', 'Low'],
+      aliases: { 'Urgent': 'High', 'Critical': 'High', 'Blocker': 'High', 'Normal': 'Medium', 'Minor': 'Low' },
+      aliasesForColumn: ['Urgent', 'Critical', 'Blocker', 'Normal', 'Minor']
+    },
+    {
+      name: 'Status',
+      set: ['To Do', 'In Progress', 'Done'],
+      aliases: { 'Open': 'To Do', 'Complete': 'Done', 'Completed': 'Done', 'Started': 'In Progress', 'Closed': 'Done', 'Finished': 'Done' },
+      aliasesForColumn: ['Open', 'Complete', 'Completed', 'Started', 'Closed', 'Finished']
+    },
+    {
+      name: 'Resolution',
+      set: ['Open', 'Pending', 'Resolved', 'Closed'],
+      aliases: { 'In Progress': 'Pending', 'Done': 'Resolved', 'Complete': 'Resolved', 'Completed': 'Resolved' },
+      aliasesForColumn: ['In Progress', 'Done', 'Complete', 'Completed']
+    },
+    {
+      name: 'Yes/No',
+      set: ['Yes', 'No'],
+      aliases: { 'True': 'Yes', 'False': 'No', 'Y': 'Yes', 'N': 'No' },
+      aliasesForColumn: ['True', 'False', 'Y', 'N']
+    },
+    {
+      name: 'Enabled/Disabled',
+      set: ['Enabled', 'Disabled'],
+      aliases: { 'On': 'Enabled', 'Off': 'Disabled', 'Active': 'Enabled', 'Inactive': 'Disabled' },
+      aliasesForColumn: ['On', 'Off', 'Active', 'Inactive']
+    },
+    {
+      name: 'Size',
+      set: ['XS', 'S', 'M', 'L', 'XL'],
+      aliases: { 'Extra Small': 'XS', 'Small': 'S', 'Medium': 'M', 'Large': 'L', 'Extra Large': 'XL' },
+      aliasesForColumn: ['Extra Small', 'Small', 'Medium', 'Large', 'Extra Large']
+    }
+  ];
+
+  // Helper to normalize a value to a known set (if alias exists)
+  function normalizeToSet(val, set, aliases) {
+    if (!val) return null;
+    const trimmed = val.trim();
+    // Direct match
+    if (set.includes(trimmed)) return trimmed;
+    // Alias match (case-insensitive)
+    const found = Object.entries(aliases || {}).find(([alias, target]) =>
+      alias.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (found && set.includes(found[1])) return found[1];
+    // Try case-insensitive direct match
+    const direct = set.find(s => s.toLowerCase() === trimmed.toLowerCase());
+    if (direct) return direct;
+    return null;
+  }
+
+  const getQuickfillOptions = (colIndex, rowIndex) => {
+    if (colIndex == null || rowIndex == null) return [];
+    // Gather all values for this column, excluding current row, trim and exclude empty
+    let values = rows
+      .map((row, rIdx) => rIdx !== rowIndex ? row[colIndex]?.value : null)
+      .filter(v => typeof v === 'string' && v.trim() !== '');
+    // Deduplicate and trim
+    values = Array.from(new Set(values.map(v => v.trim()))).filter(v => v !== '');
+
+    // --- 1. Check column header for known set name or alias ---
+    const headerCell = rows[0][colIndex];
+    const headerName = headerCell && typeof headerCell.name === 'string' ? headerCell.name.trim() : '';
+    if (headerName) {
+      for (const { name, set, aliases, aliasesForColumn } of quickfillKnownSets) {
+        // Case-insensitive match for name or any aliasForColumn or set value
+        const headerLower = headerName.toLowerCase();
+        const nameLower = name.toLowerCase();
+        // Accept if header matches canonical name
+        let isHeaderMatch = headerLower === nameLower;
+        // Accept if header matches a set value (e.g. "Medium")
+        if (!isHeaderMatch && set.some(val => val.toLowerCase() === headerLower)) {
+          isHeaderMatch = true;
+        }
+        // Accept if header matches any aliasForColumn (case-insensitive)
+        if (!isHeaderMatch && Array.isArray(aliasesForColumn)) {
+          if (aliasesForColumn.some(alias => alias.toLowerCase() === headerLower)) {
+            isHeaderMatch = true;
+          }
+        }
+        // Accept if header matches any alias key (case-insensitive)
+        if (!isHeaderMatch && aliases && Object.keys(aliases).some(alias => alias.toLowerCase() === headerLower)) {
+          isHeaderMatch = true;
+        }
+        if (isHeaderMatch) {
+          // Check if all non-empty values in the column are in the set or aliases
+          let allValid = true;
+          for (const v of values) {
+            if (!normalizeToSet(v, set, aliases)) {
+              allValid = false;
+              break;
+            }
+          }
+          if (allValid) {
+            // If no conflicts, return the canonical set values for this header
+            return set;
+          }
+        }
+      }
+    }
+
+    // --- 2. Check for two or more values from a known set (via alias or direct match) ---
+    let bestMatch = null;
+    let bestMatchCount = 0;
+    let bestSet = null;
+    for (const { set, aliases } of quickfillKnownSets) {
+      // Map values to normalized set values (or null if not in set/alias)
+      const mapped = values.map(v => normalizeToSet(v, set, aliases));
+      const matchCount = mapped.filter(m => m !== null).length;
+      if (matchCount >= 2) {
+        if (matchCount > bestMatchCount) {
+          bestMatch = mapped;
+          bestMatchCount = matchCount;
+          bestSet = set;
+        }
+      }
+      // Full set match (all values present and match the set exactly)
+      if (matchCount === set.length && mapped.every(m => m !== null)) {
+        bestMatch = mapped;
+        bestMatchCount = matchCount;
+        bestSet = set;
+        break;
+      }
+    }
+    if (bestSet && bestMatchCount >= 2) {
+      return bestSet;
+    }
+    // Fallback: alphanumeric sort
+    return [...values].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+  };
+
+  // Helper to close quickfill
+  const closeQuickfill = () => {
+    setQuickfillState({ colIndex: null, rowIndex: null, open: false, selectedIndex: 0 });
+  };
+
+  // Helper to open quickfill for a cell
+  const openQuickfill = (rowIndex, colIndex) => {
+    setQuickfillState({ rowIndex, colIndex, open: true, selectedIndex: 0 });
+  };
+
+  // Handle quickfill key events
+  const handleQuickfillKeyDown = (e, rowIndex, colIndex) => {
+    const options = getQuickfillOptions(colIndex, rowIndex);
+    if (quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setQuickfillState(state => ({
+          ...state,
+          selectedIndex: (state.selectedIndex + 1) % options.length
+        }));
+        return true;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setQuickfillState(state => ({
+          ...state,
+          selectedIndex: (state.selectedIndex - 1 + options.length) % options.length
+        }));
+        return true;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        // Insert selected value into field and close dropdown
+        if (options.length > 0) {
+          updateCell(rowIndex, colIndex, 'value', options[quickfillState.selectedIndex]);
+          closeQuickfill();
+          setTimeout(() => focusInput(rowIndex, colIndex, 'value'), 0);
+        }
+        return true;
+      }
+      if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+        e.preventDefault();
+        closeQuickfill();
+        setTimeout(() => focusInput(rowIndex, colIndex, 'value'), 0);
+        return true;
+      }
+    }
+    // ArrowRight opens dropdown if field is empty and options exist
+    if (
+      !quickfillState.open &&
+      e.key === 'ArrowRight' &&
+      e.target.value === ''
+    ) {
+      const opts = getQuickfillOptions(colIndex, rowIndex);
+      if (opts.length > 0) {
+        e.preventDefault();
+        openQuickfill(rowIndex, colIndex);
+        return true;
+      }
+    }
+    return false;
+  };
+
+  // --- End quickfill logic ---
   // Each top-level <li> has input for row label (col 0)
   // If columns > 1, nested <ul> with inputs for sub-cells (col 1..)
   // Reorder mode state
@@ -1605,34 +1821,66 @@ export default function App() {
                                 onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
                                 onDoubleClick={e => e.target.select()}
                               />
-                              <textarea
-                                placeholder="Value"
-                                value={row[colIndex + 1].value}
-                                onChange={e => {
-                                  updateCell(rowIndex, colIndex + 1, 'value', e.target.value);
-                                  e.target.style.height = 'auto';
-                                  e.target.style.height = `${e.target.scrollHeight}px`;
-                                }}
-                                style={{ flex: 1, resize: 'vertical', minHeight: '1.5em', overflow: 'hidden' }}
-                                rows={1}
-                                onKeyDown={e => {
-                                  // Two-step deletion for sub-bullets with mixed data
-                                  if (
-                                    e.key === 'Backspace' &&
-                                    e.target.value === '' &&
-                                    columns > 1 &&
-                                    rows.some(r => r[colIndex + 1].value !== '')
-                                  ) {
-                                    e.preventDefault();
-                                    if (pendingDeleteCol !== colIndex) {
-                                      setPendingDeleteCol(colIndex);
-                                      clearTimeout(pendingDeleteColTimer.current);
-                                      pendingDeleteColTimer.current = setTimeout(() => {
+                              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                                <textarea
+                                  placeholder="Value"
+                                  value={row[colIndex + 1].value}
+                                  onChange={e => {
+                                    updateCell(rowIndex, colIndex + 1, 'value', e.target.value);
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = `${e.target.scrollHeight}px`;
+                                  }}
+                                  style={{ flex: 1, resize: 'vertical', minHeight: '1.5em', overflow: 'hidden', paddingRight: '1.6em' }}
+                                  rows={1}
+                                  onKeyDown={e => {
+                                    // Quickfill handling
+                                    if (
+                                      handleQuickfillKeyDown(e, rowIndex, colIndex + 1)
+                                    ) return;
+                                    // Two-step deletion for sub-bullets with mixed data
+                                    if (
+                                      e.key === 'Backspace' &&
+                                      e.target.value === '' &&
+                                      columns > 1 &&
+                                      rows.some(r => r[colIndex + 1].value !== '')
+                                    ) {
+                                      e.preventDefault();
+                                      if (pendingDeleteCol !== colIndex) {
+                                        setPendingDeleteCol(colIndex);
+                                        clearTimeout(pendingDeleteColTimer.current);
+                                        pendingDeleteColTimer.current = setTimeout(() => {
+                                          setPendingDeleteCol(null);
+                                        }, 5000);
+                                      } else {
+                                        clearTimeout(pendingDeleteColTimer.current);
                                         setPendingDeleteCol(null);
-                                      }, 5000);
-                                    } else {
-                                      clearTimeout(pendingDeleteColTimer.current);
-                                      setPendingDeleteCol(null);
+                                        // remove column
+                                        setColumns(prev => prev - 1);
+                                        setRows(prevRows =>
+                                          prevRows.map(r => {
+                                            const copy = [...r];
+                                            copy.splice(colIndex + 1, 1);
+                                            return copy;
+                                          })
+                                        );
+                                        // focus prior column or row label
+                                        setTimeout(() => {
+                                          if (colIndex > 0) {
+                                            focusInput(rowIndex, colIndex, 'value');
+                                          } else {
+                                            focusInput(rowIndex, 0, 'value');
+                                          }
+                                        }, 0);
+                                      }
+                                      return;
+                                    }
+                                    // If backspace on an empty sub-cell and entire column is empty: remove that column across all rows
+                                    if (
+                                      e.key === 'Backspace' &&
+                                      e.target.value === '' &&
+                                      rows.every(r => r[colIndex + 1].value === '')
+                                    ) {
+                                      e.preventDefault();
                                       // remove column
                                       setColumns(prev => prev - 1);
                                       setRows(prevRows =>
@@ -1642,7 +1890,7 @@ export default function App() {
                                           return copy;
                                         })
                                       );
-                                      // focus prior column or row label
+                                      // determine new focus position: same row, previous column (or level-1 if none)
                                       setTimeout(() => {
                                         if (colIndex > 0) {
                                           focusInput(rowIndex, colIndex, 'value');
@@ -1650,65 +1898,134 @@ export default function App() {
                                           focusInput(rowIndex, 0, 'value');
                                         }
                                       }, 0);
+                                      return;
                                     }
-                                    return;
-                                  }
-                                  // If backspace on an empty sub-cell and entire column is empty: remove that column across all rows
-                                  if (
-                                    e.key === 'Backspace' &&
-                                    e.target.value === '' &&
-                                    rows.every(r => r[colIndex + 1].value === '')
-                                  ) {
-                                    e.preventDefault();
-                                    // remove column
-                                    setColumns(prev => prev - 1);
-                                    setRows(prevRows =>
-                                      prevRows.map(r => {
-                                        const copy = [...r];
-                                        copy.splice(colIndex + 1, 1);
-                                        return copy;
-                                      })
-                                    );
-                                    // determine new focus position: same row, previous column (or level-1 if none)
+                                    // Enter creates new column/row behavior; Shift+Enter inserts newline
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleKeyDown(e, rowIndex, colIndex + 1);
+                                    }
+                                    // ArrowUp/ArrowDown navigate between cells
+                                    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                      e.preventDefault();
+                                      handleKeyDown(e, rowIndex, colIndex + 1);
+                                    }
+                                    // ArrowLeft at start moves focus back to name input and set editingCell
+                                    else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
+                                      e.preventDefault();
+                                      const key = `${rowIndex}-${colIndex + 1}-name`;
+                                      setEditingCell(key);
+                                      focusInput(rowIndex, colIndex + 1, 'name');
+                                      return;
+                                    }
+                                  }}
+                                  onMouseDown={e => {
+                                    if (
+                                      quickfillState.open &&
+                                      quickfillState.rowIndex === rowIndex &&
+                                      quickfillState.colIndex === colIndex + 1
+                                    ) {
+                                      e.preventDefault();
+                                      closeQuickfill();
+                                      setTimeout(() => focusInput(rowIndex, colIndex + 1, 'value'), 0);
+                                    }
+                                  }}
+                                  ref={el => (inputRefs.current[`${rowIndex}-${colIndex + 1}-value`] = el)}
+                                  aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} value`}
+                                  onFocus={e => {
+                                    setEditingCell(`${rowIndex}-${colIndex + 1}-value`);
+                                    setPendingDeleteCol(null);
+                                    clearTimeout(pendingDeleteColTimer.current);
+                                    setFocusedCell({ row: rowIndex, col: colIndex + 1 });
+                                    // Quickfill: show triangle if field is empty and options exist
+                                    if (
+                                      e.target.value === '' &&
+                                      getQuickfillOptions(colIndex + 1, rowIndex).length > 0
+                                    ) {
+                                      // Don't open dropdown here, just let triangle show
+                                    } else {
+                                      closeQuickfill();
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    setEditingCell(null);
+                                    setFocusedCell({ row: null, col: null });
+                                    // Delay closing quickfill to allow click on dropdown
                                     setTimeout(() => {
-                                      if (colIndex > 0) {
-                                        focusInput(rowIndex, colIndex, 'value');
-                                      } else {
-                                        focusInput(rowIndex, 0, 'value');
-                                      }
-                                    }, 0);
-                                    return;
-                                  }
-                                  // Enter creates new column/row behavior; Shift+Enter inserts newline
-                                  if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleKeyDown(e, rowIndex, colIndex + 1);
-                                  }
-                                  // ArrowUp/ArrowDown navigate between cells
-                                  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                                    e.preventDefault();
-                                    handleKeyDown(e, rowIndex, colIndex + 1);
-                                  }
-                                  // ArrowLeft at start moves focus back to name input and set editingCell
-                                  else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
-                                    e.preventDefault();
-                                    const key = `${rowIndex}-${colIndex + 1}-name`;
-                                    setEditingCell(key);
-                                    focusInput(rowIndex, colIndex + 1, 'name');
-                                    return;
-                                  }
-                                }}
-                                ref={el => (inputRefs.current[`${rowIndex}-${colIndex + 1}-value`] = el)}
-                                aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} value`}
-                                onFocus={() => {
-                                  setEditingCell(`${rowIndex}-${colIndex + 1}-value`);
-                                  setPendingDeleteCol(null);
-                                  clearTimeout(pendingDeleteColTimer.current);
-                                  setFocusedCell({ row: rowIndex, col: colIndex + 1 });
-                                }}
-                                onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
-                                onDoubleClick={e => e.target.select()}
-                              />
+                                      closeQuickfill();
+                                    }, 150);
+                                  }}
+                                  onDoubleClick={e => e.target.select()}
+                                />
+                                {/* Triangle indicator if field is empty and options exist and dropdown not open */}
+                                {row[colIndex + 1].value === '' && getQuickfillOptions(colIndex + 1, rowIndex).length > 0 && !(quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex + 1) && (
+                                  <span
+                                    onMouseDown={e => {
+                                      e.preventDefault();
+                                      openQuickfill(rowIndex, colIndex + 1);
+                                    }}
+                                    style={{
+                                      position: 'absolute',
+                                      right: 6,
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: 0,
+                                      height: 0,
+                                      borderTop: '6px solid transparent',
+                                      borderBottom: '6px solid transparent',
+                                      borderLeft: '7px solid #888',
+                                      cursor: 'pointer'
+                                    }}
+                                  />
+                                )}
+                                {/* Quickfill dropdown */}
+                                {(quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex + 1) && (
+                                  <div
+                                    style={{
+                                      position: 'absolute',
+                                      left: 0,
+                                      right: 0,
+                                      top: 'calc(100% + 2px)',
+                                      zIndex: 10,
+                                      background: '#fff',
+                                      border: '1px solid #bbb',
+                                      borderRadius: 4,
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                      minWidth: '110px',
+                                      maxHeight: '120px',
+                                      overflowY: 'visible',
+                                    }}
+                                    tabIndex={-1}
+                                  >
+                                    {getQuickfillOptions(colIndex + 1, rowIndex).length === 0 ? (
+                                      <div style={{ padding: '6px 12px', color: '#888', fontSize: '0.95em' }}>(No suggestions)</div>
+                                    ) : (
+                                      getQuickfillOptions(colIndex + 1, rowIndex).map((v, idx) => (
+                                        <div
+                                          key={idx}
+                                          style={{
+                                            padding: '6px 12px',
+                                            background: idx === quickfillState.selectedIndex ? '#e3f2fd' : '#fff',
+                                            color: '#222',
+                                            fontSize: '1em',
+                                            cursor: 'pointer'
+                                          }}
+                                          onMouseDown={e => {
+                                            // Insert value and close dropdown
+                                            e.preventDefault();
+                                            updateCell(rowIndex, colIndex + 1, 'value', v);
+                                            closeQuickfill();
+                                            setTimeout(() => focusInput(rowIndex, colIndex + 1, 'value'), 0);
+                                          }}
+                                          onMouseEnter={() => setQuickfillState(state => ({ ...state, selectedIndex: idx }))}
+                                        >
+                                          {v}
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -1991,7 +2308,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.2.1
+      v4.3.0
     </div>
     </>
   );
