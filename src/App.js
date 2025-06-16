@@ -564,6 +564,7 @@ export default function App() {
   const [copyModalVisible, setCopyModalVisible] = useState(false);
   // Update default format to 'htmlRich'
   const [copyFormat, setCopyFormat] = useState('htmlRich'); // 'htmlRich' | 'htmlPlain' | 'tsvEscaped' | 'tsvRich' | 'ascii'
+  const [includeCucumberHeaders, setIncludeCucumberHeaders] = useState(true);
 
   // Handler to open copy modal and set default format
   const handleCopyTable = () => {
@@ -633,6 +634,29 @@ export default function App() {
       ...visualRows.slice(1).map(makeRow),
       sepRow
     ].join('\n');
+  };
+  // Export Cucumber pipe-delimited table (columns aligned, padded to max width)
+  const getExportCucumber = (includeHeaders = false) => {
+    const columnNames = rows[0].map((cell, idx) =>
+      idx === 0 ? (showIds ? 'ID' : 'Title') : cell.name || `Col ${idx}`
+    );
+    const dataRows = rows.map(row =>
+      row.map((cell, idx) =>
+        idx === 0 && showIds
+          ? cell.id
+          : (cell.value || '').replace(/\n/g, '\\n')
+      )
+    );
+    const allRows = includeHeaders ? [columnNames, ...dataRows] : dataRows;
+
+    // Calculate max width for each column
+    const colWidths = columnNames.map((_, colIdx) =>
+      Math.max(...allRows.map(row => (row[colIdx] || '').length))
+    );
+
+    return allRows.map(row =>
+      '| ' + row.map((cell, idx) => `${cell}`.padEnd(colWidths[idx])).join(' | ') + ' |'
+    ).join('\n');
   };
   const pendingDeleteColTimer = useRef(null);
 
@@ -1851,7 +1875,8 @@ export default function App() {
             {[
               { key: 'htmlRich', label: 'HTML' },
               { key: 'tsvEscaped', label: 'TSV' },
-              { key: 'ascii', label: 'ASCII' }
+              { key: 'ascii', label: 'ASCII' },
+              { key: 'cucumber', label: 'Cucumber' }
             ].map(fmt => (
               <button
                 key={fmt.key}
@@ -1891,16 +1916,32 @@ export default function App() {
                 ? getTableHTML()
                 : copyFormat === 'tsvEscaped'
                 ? getExportTSV()
-                : getExportASCII()
+                : copyFormat === 'ascii'
+                ? getExportASCII()
+                : copyFormat === 'cucumber'
+                ? getExportCucumber(includeCucumberHeaders)
+                : ''
             }
           </pre>
           <div style={{ fontSize: '0.8em', color: '#555', marginTop: 8 }}>
             {{
               htmlRich: 'The most compatible format with full styling and structure. Works across Word, Excel, Confluence, Dropbox Paper, and Apple Notes.',
               tsvEscaped: 'Structured TSV ideal for spreadsheets and re-importing. Escaped newlines preserve data integrity.',
-              ascii: 'Simple text-based table for plain environments like code snippets or terminals.'
+              ascii: 'Simple text-based table for plain environments like code snippets or terminals.',
+              cucumber: 'A simple, pipe-delimited text document table often used in Cucumber tests.'
             }[copyFormat]}
           </div>
+          {copyFormat === 'cucumber' && (
+            <label style={{ marginTop: 8, display: 'inline-flex', alignItems: 'center', fontSize: '0.8em', color: '#666' }}>
+              Include Headers
+              <input
+                type="checkbox"
+                checked={includeCucumberHeaders}
+                onChange={() => setIncludeCucumberHeaders(!includeCucumberHeaders)}
+                style={{ marginLeft: 4 }}
+              />
+            </label>
+          )}
           <div style={{ marginTop: 12 }}>
             <button
               className="btn btn-primary"
@@ -1910,7 +1951,11 @@ export default function App() {
                     ? getTableHTML()
                     : copyFormat === 'tsvEscaped'
                     ? getExportTSV()
-                    : getExportASCII();
+                    : copyFormat === 'ascii'
+                    ? getExportASCII()
+                    : copyFormat === 'cucumber'
+                    ? getExportCucumber(includeCucumberHeaders)
+                    : '';
                 if (copyFormat === 'htmlRich') {
                   // Write as HTML to clipboard using Clipboard API
                   const html = getTableHTML();
@@ -1946,7 +1991,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.2.0
+      v4.2.1
     </div>
     </>
   );
