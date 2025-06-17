@@ -26,6 +26,21 @@ const parseImportText = (text) => {
   const colSectionMemory = {};
   // Do not use includeIds/includeHeaders during parsing; always parse all info
   for (const line of lines) {
+    // --- BEGIN PATCH: handle "- Section ## ZEK1 | Row Title::Row Value" ---
+    const fullMatch = line.match(/^[-*]\s+([^\s#]+)\s*##\s*([A-Z]{3}\d)\s*\|\s*([^:]+)::(.*)$/i);
+    if (fullMatch) {
+      if (current) rowsArr.push(current);
+      const section = fullMatch[1];
+      const id = fullMatch[2].toUpperCase();
+      const title = fullMatch[3].trim();
+      const value = fullMatch[4].trim();
+      lastSection = section;
+      sawSection = true;
+      current = { title, value, subs: [], section, id };
+      continue;
+    }
+    // --- END PATCH ---
+
     // Handle blank lines => paragraph break in last sub-value
     if (/^\s*$/.test(line) && current && current.subs.length) {
       const lastSub = current.subs[current.subs.length - 1];
@@ -224,7 +239,19 @@ const parseImportText = (text) => {
       };
     }
   }
-  if (rowsArr.length === 0) return null;
+  if (rowsArr.length === 0) {
+    // Fallback: treat as single cell if nothing parsed
+    if (text.trim() !== '') {
+      console.warn('parseImportText: No structure detected, using fallback.');
+      return {
+        columns: 1,
+        rows: [[{ name: '', value: text.trim() }]],
+        parsedHeaders: [''],
+        parsedIds: [generateRowId()]
+      };
+    }
+    return null;
+  }
   // Normalize sub-count to max across all bullets
   const maxSubCount = rowsArr.reduce((max, r) => Math.max(max, r.subs.length), 0);
   rowsArr.forEach(r => {
@@ -264,6 +291,34 @@ const parseImportText = (text) => {
     );
     return row;
   });
+
+  // --- PATCH: Split sub-bullet names like "Col_SecA ## Col_SecA_Col 1" into section and name,
+  // and apply filldown logic for missing sections ---
+  rows.forEach(row => {
+    // Track last seen section for filldown
+    let lastSection = null;
+    for (let i = 1; i < row.length; i++) {
+      const cell = row[i];
+      // Split if matches "Section ## Name"
+      if (
+        typeof cell.name === 'string' &&
+        cell.name.includes('##')
+      ) {
+        const match = cell.name.match(/^([^\s#]+)\s*##\s*(.+)$/);
+        if (match) {
+          cell.section = match[1].trim();
+          cell.name = match[2].trim();
+          lastSection = cell.section;
+        }
+      } else if (!cell.section && lastSection) {
+        // Filldown section if missing
+        cell.section = lastSection;
+      } else if (cell.section) {
+        lastSection = cell.section;
+      }
+    }
+  });
+  // --- END PATCH ---
 
   // Convert string section fields into section objects with ids
   const promoteSections = (rowData) => {
@@ -581,6 +636,8 @@ export default function App() {
       let result = textModeFormat === 'tables'
         ? parseImportTSV(importText)
         : parseImportText(importText);
+      // Debug log
+      console.log('Text import parse result:', result);
       if (result) {
         // If includeHeaders is false, override parsedHeaders with blanks
         let columnsCount = result.columns;
@@ -1313,8 +1370,6 @@ export default function App() {
     return false;
   };
 
-  // --- End quickfill logic ---
-
   // --- Global keyboard shortcuts ---
   useEffect(() => {
     const handleGlobalKeyDown = (e) => {
@@ -1493,6 +1548,8 @@ export default function App() {
                 } else {
                   // Parse input text and apply header/id logic after parsing
                   let result = parseImportText(importText);
+                  // Add this debug log:
+                  console.log('Text import parse result (button handler):', result);
                   if (result) {
                     let columnsCount = result.columns;
                     let rowsArr = result.rows;
@@ -1533,6 +1590,8 @@ export default function App() {
                 try {
                   // Parse TSV and apply header/id logic after parsing
                   let result = parseImportTSV(importText);
+                  // Add this debug log:
+                  console.log('TSV import parse result (button handler):', result);
                   if (result) {
                     let columnsCount = result.columns;
                     let rowsArr = result.rows;
@@ -2591,7 +2650,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.3.2
+      v4.3.3
     </div>
     </>
   );
