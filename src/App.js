@@ -1,4 +1,3 @@
-//v4.2.0
 import React, { useState, useRef, useEffect } from 'react';
 import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
@@ -12,10 +11,19 @@ const generateRowId = () => {
   return `${rand(consonants)}${rand(vowels)}${rand(consonants)}${Math.floor(Math.random() * 10)}`;
 };
 
+// Generate a short section ID (for future grouping/sections)
+const generateSectionId = (prefix = 'section') =>
+  `${prefix}-${Math.random().toString(36).substr(2, 6)}`;
+
 const parseImportText = (text) => {
   const lines = text.split('\n');
   const rowsArr = [];
   let current = null;
+  let lastSection = null;
+  let sawSection = false;
+  let defaultSection = null;
+  // For sub-bullets, track per-column last section
+  const colSectionMemory = {};
   // Do not use includeIds/includeHeaders during parsing; always parse all info
   for (const line of lines) {
     // Handle blank lines => paragraph break in last sub-value
@@ -28,23 +36,46 @@ const parseImportText = (text) => {
       continue;
     }
     // Detect level-1 bullets (*) or -
+    // Now: allow for optional section: "- ## SectionName ID | Name :: Value"
     const lvl1 = line.match(/^([*-])\s+(.*)/);
     // Detect third-level or deeper bullets (4+ spaces)
     const lvl3 = line.match(/^\s{4,}[-*]\s+(.*)/);
     // Detect level-2 bullets with exactly two spaces
+    // Now: allow for optional section: "  - ## ColSection Name :: Value"
     const lvl2 = line.match(/^ {2}[-*]\s+(.*)/);
     if (lvl1) {
       // Push previous top-level if exists
       if (current) rowsArr.push(current);
+      // Parse optional section: look for "## SectionName" at the start
+      let raw = lvl1[2].trim();
+      let section = null;
+      let sectionMatch = raw.match(/^##\s*([^\s]+)\s+(.*)$/);
+      if (sectionMatch) {
+        section = sectionMatch[1];
+        raw = sectionMatch[2].trim();
+        lastSection = section;
+        sawSection = true;
+      }
       // Parse optional title::value
-      const raw = lvl1[2].trim();
       const idx = raw.indexOf('::');
       let title = '', value = raw;
       if (idx >= 0) {
         title = raw.slice(0, idx).trim();
         value = raw.slice(idx + 2).trim();
       }
-      current = { title, value, subs: [] };
+      // If section is seen for the first time after first row, set a default section for prior rows
+      if (section && rowsArr.length > 0 && !defaultSection) {
+        defaultSection = '_';
+        // Assign default section to previous rows
+        rowsArr.forEach(r => {
+          if (!r.section) r.section = defaultSection;
+        });
+      }
+      // If no section, fill-down from lastSection
+      if (!section && lastSection) {
+        section = lastSection;
+      }
+      current = { title, value, subs: [], ...(section ? { section } : {}) };
     }
     // Third-level or deeper bullets: append as Markdown list to last sub-value
     else if (lvl3 && current) {
@@ -57,14 +88,33 @@ const parseImportText = (text) => {
       }
     }
     else if (lvl2 && current) {
-      const raw = lvl2[1].trim();
+      // Parse optional section: look for "## ColSection" at the start
+      let raw = lvl2[1].trim();
+      let colSection = null;
+      let colSectionMatch = raw.match(/^##\s*([^\s]+)\s+(.*)$/);
+      if (colSectionMatch) {
+        colSection = colSectionMatch[1];
+        raw = colSectionMatch[2].trim();
+      }
       const idx = raw.indexOf('::');
       let subTitle = '', subValue = raw;
       if (idx >= 0) {
         subTitle = raw.slice(0, idx).trim();
         subValue = raw.slice(idx + 2).trim();
       }
-      current.subs.push({ title: subTitle, value: subValue });
+      // Track per-column section
+      let colIdx = current.subs.length + 1; // col 1 is first sub
+      if (colSection) {
+        colSectionMemory[colIdx] = colSection;
+      }
+      // Fill-down if not set
+      if (!colSection && colSectionMemory[colIdx]) {
+        colSection = colSectionMemory[colIdx];
+      }
+      current.subs.push(
+        colSection ? { title: subTitle, value: subValue, section: colSection }
+        : { title: subTitle, value: subValue }
+      );
     }
     // Fallback: detect structure by indent when no colons are present
     const indentMatch = line.match(/^(\s*)[-*]\s+(.*)/);
@@ -91,6 +141,12 @@ const parseImportText = (text) => {
   }
   // Push last group
   if (current) rowsArr.push(current);
+  // If defaultSection was set, fill-down to all rows without section
+  if (defaultSection) {
+    rowsArr.forEach(r => {
+      if (!r.section) r.section = defaultSection;
+    });
+  }
   // Fallback: handle Dropbox-style lists if nothing parsed or structure is unusable (no subs)
   // Improved Dropbox-style detection: trigger only if 2-space sub-bullets are missing but 4-space and top-level bullets exist
   const hasLvl2 = lines.some(l => /^ {2}[-*]\s+/.test(l));
@@ -196,11 +252,50 @@ const parseImportText = (text) => {
     const row = [{
       id,
       name,
-      value: r.value
+      value: r.value,
+      ...(r.section ? { section: r.section } : {})
     }];
-    r.subs.forEach(sub => row.push({ name: sub.title, value: sub.value }));
+    r.subs.forEach((sub, subIdx) =>
+      row.push(
+        sub.section
+          ? { name: sub.title, value: sub.value, section: sub.section }
+          : { name: sub.title, value: sub.value }
+      )
+    );
     return row;
   });
+
+  // Convert string section fields into section objects with ids
+  const promoteSections = (rowData) => {
+    const seenRowSections = {};
+    const seenColSections = {};
+    rowData.forEach(row => {
+      if (row[0].section && typeof row[0].section === 'string') {
+        const name = row[0].section;
+        if (!seenRowSections[name]) {
+          seenRowSections[name] = {
+            sectionId: 'rowSection-' + name.replace(/\s+/g, '_'),
+            sectionName: name
+          };
+        }
+        row[0].section = seenRowSections[name];
+      }
+      row.forEach((cell, i) => {
+        if (i > 0 && cell.section && typeof cell.section === 'string') {
+          const name = cell.section;
+          if (!seenColSections[name]) {
+            seenColSections[name] = {
+              sectionId: 'colSection-' + name.replace(/\s+/g, '_'),
+              sectionName: name
+            };
+          }
+          cell.section = seenColSections[name];
+        }
+      });
+    });
+  };
+
+  promoteSections(rows);
   return { columns, rows, parsedHeaders, parsedIds };
 };
 
@@ -241,9 +336,36 @@ export default function App() {
     return defaultOrderedListOpen(tokens, idx, options, env, self);
   };
   // Initial simple outline seed
-  const [columns, setColumns] = useState(1);
+  const [columns, setColumns] = useState(5);
   const [rows, setRows] = useState([
-    [{ id: generateRowId(), name: '', value: '' }]
+    [
+      { id: 'ZEK1', name: 'Row Title', value: 'Row_SecA_Row 1', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
+      { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 1 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 1 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 1 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+      { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 1 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+    ],
+    [
+      { id: 'ZEK2', name: 'Row Title', value: 'Row_SecA_Row 2', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
+      { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 2 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 2 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 2 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+      { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 2 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+    ],
+    [
+      { id: 'ZEK3', name: 'Row Title', value: 'Row_SecB_Row 3', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
+      { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 3 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 3 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 3 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+      { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 3 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+    ],
+    [
+      { id: 'ZEK4', name: 'Row Title', value: 'Row_SecB_Row 4', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
+      { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 4 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 4 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+      { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 4 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+      { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 4 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+    ]
   ]);
   const [showIds, setShowIds] = useState(true);
   // New state: includeIds
@@ -264,9 +386,32 @@ export default function App() {
   const [showInvalidModal, setShowInvalidModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [includeHeaders, setIncludeHeaders] = useState(true);
-  // Disable sections/groups logic by stubbing empty arrays
-  const rowSections = [];
-  const colSections = [];
+  const [includeSections, setIncludeSections] = useState(true);
+  // Dynamically build rowSections and colSections from rows
+  // Extract unique row and column sections from the current rows array, deduplicated by sectionId
+  const rowSections = React.useMemo(() => {
+    const seen = new Map();
+    rows.forEach(row => {
+      const sec = row[0]?.section;
+      if (sec && typeof sec === 'object' && !seen.has(sec.sectionId)) {
+        seen.set(sec.sectionId, sec);
+      }
+    });
+    return Array.from(seen.values());
+  }, [rows]);
+
+  const colSections = React.useMemo(() => {
+    const seen = new Map();
+    if (rows.length > 0) {
+      rows[0].slice(1).forEach(cell => {
+        const sec = cell?.section;
+        if (sec && typeof sec === 'object' && !seen.has(sec.sectionId)) {
+          seen.set(sec.sectionId, sec);
+        }
+      });
+    }
+    return Array.from(seen.values());
+  }, [rows]);
 
   // Debug: log current rows and columns on change
   useEffect(() => {
@@ -459,54 +604,50 @@ export default function App() {
           ]);
           parsedIds = rowsArr.map(row => row[0].id);
         }
+        // If includeSections is false, strip all .section fields
+        if (!includeSections && rowsArr.length > 0) {
+          rowsArr = rowsArr.map(row =>
+            row.map(cell => {
+              const { section, ...rest } = cell;
+              return rest;
+            })
+          );
+        }
         setColumns(columnsCount);
         setRows(rowsArr);
         // Optionally store parsedHeaders/parsedIds if needed elsewhere
       }
       initialisedFromText.current = false;
     }
-  }, [showTextMode, textModeFormat, includeHeaders, includeIds]);
+  }, [showTextMode, textModeFormat, includeHeaders, includeIds, includeSections]);
 
   const handleCopy = () => {
     const textToCopy = includeHeaders ? importText : stripHeaders(importText);
     navigator.clipboard.writeText(textToCopy);
   };
 
-  // Example 5×5 seed in Markdown-compatible text-mode format (using :: delimiters)
+  // Example seed data for text mode
   const exampleText = [
-    '- RT::R1-N',
-    '  - C1-N:: R1-C1',
-    '  - C2-N:: R1-C2',
-    '  - C3-N:: R1-C3',
-    '  - C4-N:: R1-C4',
-    '  - C5-N:: R1-C5',
-    '- RT::R2-N',
-    '  - C1-N:: R2-C1',
-    '  - C2-N:: R2-C2',
-    '  - C3-N:: R2-C3',
-    '  - C4-N:: R2-C4',
-    '  - C5-N:: R2-C5',
-    '- RT::R3-N',
-    '  - C1-N:: R3-C1',
-    '  - C2-N:: R3-C2',
-    '  - C3-N:: R3-C3',
-    '  - C4-N:: R3-C4',
-    '  - C5-N:: R3-C5',
-    '- RT::R4-N',
-    '  - C1-N:: R4-C1',
-    '  - C2-N:: R4-C2',
-    '  - C3-N:: R4-C3',
-    '  - C4-N:: R4-C4',
-    '  - C5-N:: R4-C5',
-    '- RT::R5-N',
-    '  - C1-N:: **Bold Text**',
-    '  - C2-N:: *Italic Text*',
-    '  - C3-N:: List:',
-    '      - Item A',
-    '      - Item B',
-    '      - Item C',
-    '  - C4-N:: > Blockquote example',
-    '  - C5-N:: `Inline code sample`'
+    '- Row_SecA ## ZEK1 | Row Title::Row_SecA_Row 1',
+    '  - Col_SecA ## Col_SecA_Col 1:: Row_SecA_Row 1 _ Col_SecA_Col 1',
+    '  - Col_SecA ## Col_SecA_Col 2:: Row_SecA_Row 1 _ Col_SecA_Col 2',
+    '  - Col_SecB ## Col_SecB_Col 3:: Row_SecA_Row 1 _ Col_SecB_Col 3',
+    '  - Col_SecB ## Col_SecB_Col 4:: Row_SecA_Row 1 _ Col_SecB_Col 4',
+    '- Row_SecA ## ZEK2 | Row Title::Row_SecA_Row 2',
+    '  - Col_SecA ## Col_SecA_Col 1:: Row_SecA_Row 2 _ Col_SecA_Col 1',
+    '  - Col_SecA ## Col_SecA_Col 2:: Row_SecA_Row 2 _ Col_SecA_Col 2',
+    '  - Col_SecB ## Col_SecB_Col 3:: Row_SecA_Row 2 _ Col_SecB_Col 3',
+    '  - Col_SecB ## Col_SecB_Col 4:: Row_SecA_Row 2 _ Col_SecB_Col 4',
+    '- Row_SecB ## ZEK3 | Row Title::Row_SecB_Row 3',
+    '  - Col_SecA ## Col_SecA_Col 1:: Row_SecB_Row 3 _ Col_SecA_Col 1',
+    '  - Col_SecA ## Col_SecA_Col 2:: Row_SecB_Row 3 _ Col_SecA_Col 2',
+    '  - Col_SecB ## Col_SecB_Col 3:: Row_SecB_Row 3 _ Col_SecB_Col 3',
+    '  - Col_SecB ## Col_SecB_Col 4:: Row_SecB_Row 3 _ Col_SecB_Col 4',
+    '- Row_SecB ## ZEK4 | Row Title::Row_SecB_Row 4',
+    '  - Col_SecA ## Col_SecA_Col 1:: Row_SecB_Row 4 _ Col_SecA_Col 1',
+    '  - Col_SecA ## Col_SecA_Col 2:: Row_SecB_Row 4 _ Col_SecA_Col 2',
+    '  - Col_SecB ## Col_SecB_Col 3:: Row_SecB_Row 4 _ Col_SecB_Col 3',
+    '  - Col_SecB ## Col_SecB_Col 4:: Row_SecB_Row 4 _ Col_SecB_Col 4'
   ].join('\n');
 
   // Handler to paste example into the textarea
@@ -517,20 +658,70 @@ export default function App() {
 
   // Generate Rich HTML table from current rows and columns, rendering Markdown
   const getTableHTML = () => {
-    const headers = rows[0].map((cell, idx) =>
-      cell.name || (idx === 0 ? 'Title' : `Column ${idx}`)
-    );
-    const thead = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead>`;
-    const tbody = rows.map(row => {
-      const cells = row.map(cell => {
-        const rendered = md.render(cell.value || '')
-          .replace(/^<p>(?!- )/, '') // Only strip <p> if not followed by "- "
-          .replace(/<\/p>\n?$/, '')
-          .replace(/<p>(- .+?)<\/p>/g, '$1'); // Remove <p> wrapping list items
-        return `<td>${rendered}</td>`;
-      });
-      return `<tr>${cells.join('')}</tr>`;
+    // Build column section groups
+    const columnSectionGroups = [];
+    let currentGroup = null;
+    rows[0].slice(1).forEach((cell, idx) => {
+      // Use sectionName for grouping, not sectionId
+      const section = cell.section?.sectionName || (typeof cell.section === 'string' ? cell.section : '_');
+      if (!currentGroup || currentGroup.section !== section) {
+        currentGroup = { section, cells: [], startIdx: idx + 1 };
+        columnSectionGroups.push(currentGroup);
+        console.log('DEBUG column group:', currentGroup);
+      }
+      currentGroup.cells.push({ ...cell, colIndex: idx + 1 });
+    });
+
+    // Build row section groups
+    const rowSectionGroups = [];
+    let lastSection = null;
+    let group = null;
+    rows.forEach((row, idx) => {
+      // Use sectionName for grouping, not sectionId
+      const section = row[0].section?.sectionName || (typeof row[0].section === 'string' ? row[0].section : '_');
+      if (section !== lastSection) {
+        group = { section, rows: [], startIdx: idx };
+        rowSectionGroups.push(group);
+        console.log('DEBUG row group:', group);
+        lastSection = section;
+      }
+      group.rows.push({ row, idx });
+    });
+
+    const mdRender = (text) =>
+      md.render(text || '')
+        .replace(/^<p>(?!- )/, '')
+        .replace(/<\/p>\n?$/, '')
+        .replace(/<p>(- .+?)<\/p>/g, '$1');
+
+    // Updated thead generation to separate column section headers from column names
+    const thead = `
+      <thead>
+        <tr>
+          <th rowspan="2">Section</th>
+          <th rowspan="2">${rows[0][0].name || 'Title'}</th>
+          ${columnSectionGroups.map(g => `<th colspan="${g.cells.length}">${g.section === '_' ? '' : g.section}</th>`).join('')}
+        </tr>
+        <tr>
+          ${columnSectionGroups.map(g => g.cells.map(cell => `<th>${cell.name || ''}</th>`).join('')).join('')}
+        </tr>
+      </thead>
+    `;
+
+    const tbody = rowSectionGroups.map(group => {
+      return group.rows.map((entry, i) => {
+        const { row, idx } = entry;
+        const cells = row.map((cell, j) => `<td>${mdRender(cell.value)}</td>`);
+        const sectionCell = i === 0
+          ? `<td rowspan="${group.rows.length}">${group.section === '_' ? '' : group.section}</td>`
+          : '';
+        return `<tr>${sectionCell}${cells.join('')}</tr>`;
+      }).join('');
     }).join('');
+
+    // Debug: log column and row section groupings
+    console.log('Column Section Groups:', columnSectionGroups);
+    console.log('Row Section Groups:', rowSectionGroups);
     return `<table>${thead}<tbody>${tbody}</tbody></table>`;
   };
 
@@ -677,19 +868,21 @@ export default function App() {
 
   // Insert a new row below the given rowIndex
   const insertRow = (rowIndex) => {
-    // Build a new row that inherits column names
     const headerRow = rows[0] || [];
     const newRow = headerRow.map((cell, c) => ({
-      name: cell.name,    // inherit name for every column
-      value: ''           // empty value
+      name: cell.name,
+      value: ''
     }));
     newRow[0].id = generateRowId();
+    const aboveRowSection = rows[rowIndex][0]?.section;
+    if (aboveRowSection) {
+      newRow[0].section = { ...aboveRowSection };
+    }
     setRows((prevRows) => {
       const newRows = [...prevRows];
       newRows.splice(rowIndex + 1, 0, newRow);
       return newRows;
     });
-    // Focus the value field of the newly inserted Level 1 row
     setTimeout(() => focusInput(rowIndex + 1, 0, 'value'), 0);
   };
 
@@ -702,10 +895,10 @@ export default function App() {
       }
       // If editing a column name, sync across all rows
       if (field === 'name') {
-        return prevRows.map((row) =>
+        return prevRows.map((row, rIdx) =>
           row.map((cell, c) =>
             c === colIndex
-              ? { ...cell, name: value }
+              ? { ...cell, name: value, ...(rIdx === 0 && cell.section ? { section: { ...cell.section } } : {}) }
               : cell
           )
         );
@@ -1586,6 +1779,26 @@ export default function App() {
                     />
                   </label>
                 )}
+                <label
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    fontSize: '0.8em',
+                    color: '#666',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    userSelect: 'none',
+                    textAlign: 'right'
+                  }}
+                >
+                  Include Sections
+                  <input
+                    type="checkbox"
+                    checked={includeSections}
+                    onChange={() => setIncludeSections(!includeSections)}
+                    style={{ marginLeft: 4 }}
+                  />
+                </label>
               </div>
             </div>
             {showClearModal && (
@@ -2378,7 +2591,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.3.1
+      v4.3.2
     </div>
     </>
   );
