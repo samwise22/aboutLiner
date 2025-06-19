@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
+import ReorderModeUI from './reorderMode';
 
 // Generate short, human-friendly row ID (e.g. ZEK3)
 const generateRowId = () => {
@@ -26,21 +27,6 @@ const parseImportText = (text) => {
   const colSectionMemory = {};
   // Do not use includeIds/includeHeaders during parsing; always parse all info
   for (const line of lines) {
-    // --- BEGIN PATCH: handle "- Section ## ZEK1 | Row Title::Row Value" ---
-    const fullMatch = line.match(/^[-*]\s+([^\s#]+)\s*##\s*([A-Z]{3}\d)\s*\|\s*([^:]+)::(.*)$/i);
-    if (fullMatch) {
-      if (current) rowsArr.push(current);
-      const section = fullMatch[1];
-      const id = fullMatch[2].toUpperCase();
-      const title = fullMatch[3].trim();
-      const value = fullMatch[4].trim();
-      lastSection = section;
-      sawSection = true;
-      current = { title, value, subs: [], section, id };
-      continue;
-    }
-    // --- END PATCH ---
-
     // Handle blank lines => paragraph break in last sub-value
     if (/^\s*$/.test(line) && current && current.subs.length) {
       const lastSub = current.subs[current.subs.length - 1];
@@ -239,19 +225,7 @@ const parseImportText = (text) => {
       };
     }
   }
-  if (rowsArr.length === 0) {
-    // Fallback: treat as single cell if nothing parsed
-    if (text.trim() !== '') {
-      console.warn('parseImportText: No structure detected, using fallback.');
-      return {
-        columns: 1,
-        rows: [[{ name: '', value: text.trim() }]],
-        parsedHeaders: [''],
-        parsedIds: [generateRowId()]
-      };
-    }
-    return null;
-  }
+  if (rowsArr.length === 0) return null;
   // Normalize sub-count to max across all bullets
   const maxSubCount = rowsArr.reduce((max, r) => Math.max(max, r.subs.length), 0);
   rowsArr.forEach(r => {
@@ -291,34 +265,6 @@ const parseImportText = (text) => {
     );
     return row;
   });
-
-  // --- PATCH: Split sub-bullet names like "Col_SecA ## Col_SecA_Col 1" into section and name,
-  // and apply filldown logic for missing sections ---
-  rows.forEach(row => {
-    // Track last seen section for filldown
-    let lastSection = null;
-    for (let i = 1; i < row.length; i++) {
-      const cell = row[i];
-      // Split if matches "Section ## Name"
-      if (
-        typeof cell.name === 'string' &&
-        cell.name.includes('##')
-      ) {
-        const match = cell.name.match(/^([^\s#]+)\s*##\s*(.+)$/);
-        if (match) {
-          cell.section = match[1].trim();
-          cell.name = match[2].trim();
-          lastSection = cell.section;
-        }
-      } else if (!cell.section && lastSection) {
-        // Filldown section if missing
-        cell.section = lastSection;
-      } else if (cell.section) {
-        lastSection = cell.section;
-      }
-    }
-  });
-  // --- END PATCH ---
 
   // Convert string section fields into section objects with ids
   const promoteSections = (rowData) => {
@@ -636,8 +582,6 @@ export default function App() {
       let result = textModeFormat === 'tables'
         ? parseImportTSV(importText)
         : parseImportText(importText);
-      // Debug log
-      console.log('Text import parse result:', result);
       if (result) {
         // If includeHeaders is false, override parsedHeaders with blanks
         let columnsCount = result.columns;
@@ -1485,17 +1429,29 @@ export default function App() {
         ? dragOverIndex - 1
         : dragOverIndex;
       if (reorderAxis === 'rows') {
-        // Reorder rows (unchanged)
+        // Reorder rows and update section
         const newRows = [...rows];
         const [moved] = newRows.splice(draggingIndex, 1);
         newRows.splice(insertAt, 0, moved);
+        // Set the section of the moved row to match the row at the insert position (if at start), or above otherwise
+        let targetSection = null;
+        if (insertAt === 0 && newRows.length > 1) {
+          targetSection = newRows[1][0].section;
+        } else if (insertAt > 0) {
+          targetSection = newRows[insertAt - 1][0].section;
+        }
+        if (targetSection) {
+          newRows[insertAt] = moved.map((cell, i) =>
+            i === 0
+              ? { ...cell, section: { ...targetSection } }
+              : { ...cell }
+          );
+        }
         setRows(newRows);
       } else {
-        // Reorder sub-bullet columns, preserving column 1
+        // Reorder sub-bullet columns, preserving column 1, and update section
         const sourceFullIndex = draggingIndex + 1;
-        // Desired insertion before slice index dragOverIndex => full index = dragOverIndex + 1
         let destFullIndex = dragOverIndex + 1;
-        // If moving downwards, removal shifts target left by 1
         if (destFullIndex > sourceFullIndex) {
           destFullIndex--;
         }
@@ -1505,12 +1461,71 @@ export default function App() {
           copy.splice(destFullIndex, 0, moved);
           return copy;
         });
+        // Set the section of the moved column to match the column at the insert position (if at start), or to the left otherwise
+        let targetSection = null;
+        if (destFullIndex === 1 && newRows[0].length > 2) {
+          targetSection = newRows[0][2].section;
+        } else if (destFullIndex > 1) {
+          targetSection = newRows[0][destFullIndex - 1].section;
+        }
+        if (targetSection) {
+          for (let r = 0; r < newRows.length; r++) {
+            newRows[r][destFullIndex] = {
+              ...newRows[r][destFullIndex],
+              section: { ...targetSection }
+            };
+          }
+        }
         setRows(newRows);
       }
     }
     setDraggingIndex(null);
     setDragOverIndex(null);
     setInsertionLineTop(null);
+  };
+
+  // Handle intent-aware section drop from reorderMode.js
+  const handleSectionDrop = ({ draggingIndex, targetSectionIndex, axis, dropAtSectionStart }) => {
+    if (axis === 'rows') {
+      const newRows = [...rows];
+      const [moved] = newRows.splice(draggingIndex, 1);
+      // Insert at the start of the target section
+      newRows.splice(targetSectionIndex, 0, moved);
+      // Assign section to match the row now at targetSectionIndex+1 (the next row in the section)
+      let targetSection = null;
+      if (newRows.length > targetSectionIndex + 1) {
+        targetSection = newRows[targetSectionIndex + 1][0].section;
+      }
+      if (targetSection) {
+        newRows[targetSectionIndex] = moved.map((cell, i) =>
+          i === 0 ? { ...cell, section: { ...targetSection } } : { ...cell }
+        );
+      }
+      setRows(newRows);
+    } else if (axis === 'columns') {
+      const sourceFullIndex = draggingIndex + 1;
+      const destFullIndex = targetSectionIndex + 1;
+      const newRows = rows.map(row => {
+        const copy = [...row];
+        const [moved] = copy.splice(sourceFullIndex, 1);
+        copy.splice(destFullIndex, 0, moved);
+        return copy;
+      });
+      // Assign section to match the column now at destFullIndex+1 (the next col in the section)
+      let targetSection = null;
+      if (newRows[0].length > destFullIndex + 1) {
+        targetSection = newRows[0][destFullIndex + 1].section;
+      }
+      if (targetSection) {
+        for (let r = 0; r < newRows.length; r++) {
+          newRows[r][destFullIndex] = {
+            ...newRows[r][destFullIndex],
+            section: { ...targetSection }
+          };
+        }
+      }
+      setRows(newRows);
+    }
   };
 
   return (
@@ -1548,8 +1563,6 @@ export default function App() {
                 } else {
                   // Parse input text and apply header/id logic after parsing
                   let result = parseImportText(importText);
-                  // Add this debug log:
-                  console.log('Text import parse result (button handler):', result);
                   if (result) {
                     let columnsCount = result.columns;
                     let rowsArr = result.rows;
@@ -1557,7 +1570,6 @@ export default function App() {
                     let parsedIds = result.parsedIds || [];
                     // If includeHeaders is false, blank out header names
                     if (!includeHeaders && rowsArr.length > 0) {
-                      // Blank out all cell.name in first row, and propagate to all rows
                       rowsArr = rowsArr.map(row => row.map((cell, idx) => ({
                         ...cell,
                         name: ''
@@ -1591,8 +1603,6 @@ export default function App() {
                 try {
                   // Parse TSV and apply header/id logic after parsing
                   let result = parseImportTSV(importText);
-                  // Add this debug log:
-                  console.log('TSV import parse result (button handler):', result);
                   if (result) {
                     let columnsCount = result.columns;
                     let rowsArr = result.rows;
@@ -1900,571 +1910,463 @@ export default function App() {
             )}
           </>
         ) : (
-          reorderMode && reorderAxis === 'columns' ? (
-            // --- REORDER MODE: COLUMNS WITH SECTION HEADERS (TOP TO BOTTOM) ---
-            <ul style={{ listStyleType: 'none', paddingLeft: 0, position: 'relative' }}>
-              {(() => {
-                // Build column section groups
-                const columnSectionGroups = [];
-                let currentGroup = null;
-                rows[0].slice(1).forEach((cell, idx) => {
-                  const section = cell.section?.sectionName || (typeof cell.section === 'string' ? cell.section : '_');
-                  if (!currentGroup || currentGroup.section !== section) {
-                    currentGroup = { section, cells: [], startIdx: idx + 1 };
-                    columnSectionGroups.push(currentGroup);
-                  }
-                  currentGroup.cells.push({ ...cell, colIndex: idx + 1 });
-                });
-                // Render groups with section headers (top to bottom)
-                let colGlobalIdx = 0;
-                return columnSectionGroups.map((group, gIdx) => (
-                  <React.Fragment key={group.section + '-' + gIdx}>
-                    {/* Section header */}
-                    <li
-                      style={{
-                        margin: '16px 0 4px 0',
-                        paddingLeft: '16px',
-                        fontWeight: 600,
-                        fontSize: '1em',
-                        color: '#2a4d7a',
-                        background: '#e3f0fa',
-                        borderRadius: '6px',
-                        borderLeft: '4px solid #4d90fe',
-                        display: 'flex',
-                        alignItems: 'center',
-                        minHeight: '28px'
-                      }}
-                    >
-                      <span style={{ marginLeft: '8px' }}>
-                        {group.section === '_' ? <em>No Section</em> : group.section}
-                      </span>
-                    </li>
-                    {/* Columns in this section (top to bottom) */}
-                    {group.cells.map((cell, idx) => {
-                      const colIndex = colGlobalIdx + 1;
-                      colGlobalIdx++;
-                      return (
-                        <li
-                          ref={el => colRefs.current[colIndex - 1] = el}
-                          key={colIndex}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            marginBottom: '8px',
-                            paddingLeft: '32px'
-                          }}
-                        >
-                          <span
-                            className="material-symbols-outlined"
-                            draggable={false}
-                            onMouseDown={e => handleDragStart(e, colIndex - 1)}
-                            style={{
-                              fontSize: '16px',
-                              color: '#000',
-                              marginRight: '8px',
-                              cursor: 'grab'
-                            }}
-                          >
-                            drag_indicator
-                          </span>
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              backgroundColor: `var(--col-color-${colIndex + 1})`,
-                              padding: '4px 12px',
-                              borderRadius: '999px',
-                              color: '#333'
-                            }}
-                          >
-                            {cell.name || `Column ${colIndex}`}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </React.Fragment>
-                ));
-              })()}
-              {dragOverIndex === rows[0].length - 1 && insertionLineTop != null && (
-                <div className="insertion-line" style={{ top: `${insertionLineTop}px` }} />
-              )}
-            </ul>
+          reorderMode ? (
+            <ReorderModeUI
+              reorderAxis={reorderAxis}
+              rows={rows}
+              columns={columns}
+              dragOverIndex={dragOverIndex}
+              insertionLineTop={insertionLineTop}
+              handleDragStart={handleDragStart}
+              handleDragMove={handleDragMove}
+              handleDragEnd={handleDragEnd}
+              liRefs={liRefs}
+              colRefs={colRefs}
+              pendingDeleteRow={pendingDeleteRow}
+              inputRefs={inputRefs}
+              updateCell={updateCell}
+              focusInput={focusInput}
+              setRows={setRows}
+              setPendingDeleteRow={setPendingDeleteRow}
+              pendingDeleteTimer={pendingDeleteTimer}
+              setFocusedCell={setFocusedCell}
+              handleKeyDown={handleKeyDown}
+              rowSections={rowSections}
+              colSections={colSections}
+              onSectionDrop={handleSectionDrop}
+            />
           ) : (
-            // --- REORDER MODE: ROWS WITH SECTION HEADERS ---
             <ul style={{ listStyleType: 'none', paddingLeft: 0, position: 'relative' }}>
-              {/* Group rows by section */}
-              {(() => {
-                // Build row section groups
-                const rowSectionGroups = [];
-                let lastSection = null;
-                let group = null;
-                rows.forEach((row, idx) => {
-                  const section = row[0].section?.sectionName || (typeof row[0].section === 'string' ? row[0].section : '_');
-                  if (section !== lastSection) {
-                    group = { section, rows: [], startIdx: idx };
-                    rowSectionGroups.push(group);
-                    lastSection = section;
-                  }
-                  group.rows.push({ row, idx });
-                });
-                // Render groups with section headers
-                return rowSectionGroups.map((group, gIdx) => (
-                  <React.Fragment key={group.section + '-' + gIdx}>
-                    {/* Section header */}
-                    <li
-                      style={{
-                        margin: '8px 0 4px 0',
-                        paddingLeft: '16px',
-                        fontWeight: 600,
-                        fontSize: '1em',
-                        color: '#2a4d7a',
-                        background: '#e3f0fa',
-                        borderRadius: '6px',
-                        borderLeft: '4px solid #4d90fe',
-                        display: 'flex',
-                        alignItems: 'center',
-                        minHeight: '28px'
-                      }}
-                    >
-                      <span style={{ marginLeft: '8px' }}>
-                        {group.section === '_' ? <em>No Section</em> : group.section}
+              {rows.map((row, rowIndex) => (
+                <React.Fragment key={rowIndex}>
+                  {reorderMode && dragOverIndex === rowIndex && insertionLineTop != null && (
+                    <div className="insertion-line" style={{ top: `${insertionLineTop}px` }} />
+                  )}
+                  <li
+                    ref={el => liRefs.current[rowIndex] = el}
+                    key={rowIndex}
+                    className={pendingDeleteRow === rowIndex ? 'pending-delete' : ''}
+                    style={{
+                      marginBottom: 8,
+                      ...(reorderMode ? { display: 'flex', alignItems: 'center' } : {})
+                    }}
+                  >
+                    {reorderMode && (
+                      <span
+                        className="material-symbols-outlined"
+                        draggable={false}
+                        onMouseDown={e => handleDragStart(e, rowIndex)}
+                        style={{
+                          fontSize: '16px',
+                          color: '#000',
+                          marginRight: '8px',
+                          cursor: 'grab'
+                        }}
+                      >
+                        drag_indicator
                       </span>
-                    </li>
-                    {/* Rows in this section */}
-                    {group.rows.map(({ row, idx: rowIndex }) => (
-                      <React.Fragment key={rowIndex}>
-                        {reorderMode && dragOverIndex === rowIndex && insertionLineTop != null && (
-                          <div className="insertion-line" style={{ top: `${insertionLineTop}px` }} />
-                        )}
-                        <li
-                          ref={el => liRefs.current[rowIndex] = el}
-                          key={rowIndex}
-                          className={pendingDeleteRow === rowIndex ? 'pending-delete' : ''}
-                          style={{
-                            marginBottom: 8,
-                            display: 'flex',
-                            alignItems: 'center',
-                            paddingLeft: '32px' // indent rows under section
+                    )}
+                    {/* existing row content */}
+                    <div className="sub-bullet__cell" style={{ display: 'flex', gap: '4px' }}>
+                      {!reorderMode && (
+                        <input
+                          className="cell-name"
+                          type="text"
+                          placeholder="Title"
+                          value={row[0].name}
+                          onChange={e => updateCell(rowIndex, 0, 'name', e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              focusInput(rowIndex, 0, 'value');
+                              return;
+                            }
+                            if (e.key === 'Tab' && !e.shiftKey) {
+                              e.preventDefault();
+                              focusInput(rowIndex, 0, 'value');
+                              return;
+                            }
+                            if (e.key === 'ArrowRight' && e.target.selectionStart === e.target.value.length) {
+                              e.preventDefault();
+                              focusInput(rowIndex, 0, 'value');
+                              return;
+                            }
+                            handleKeyDown(e, rowIndex, 0);
                           }}
-                        >
-                          {reorderMode && (
-                            <span
-                              className="material-symbols-outlined"
-                              draggable={false}
-                              onMouseDown={e => handleDragStart(e, rowIndex)}
+                          ref={el => (inputRefs.current[`${rowIndex}-0-name`] = el)}
+                          aria-label={`Row ${rowIndex + 1} column 1 name`}
+                          onFocus={() => setFocusedCell({ row: rowIndex, col: 0 })}
+                          onBlur={() => setFocusedCell({ row: null, col: null })}
+                          onDoubleClick={e => e.target.select()}
+                        />
+                      )}
+                      <input
+                        className="cell-value"
+                        type="text"
+                        placeholder="Value"
+                        style={{ width: reorderMode ? '200%' : '100%' }}
+                        value={row[0].value}
+                        onChange={e => updateCell(rowIndex, 0, 'value', e.target.value)}
+                        onKeyDown={e => {
+                          // Two-step deletion when sub-bullets have values
+                          if (
+                            e.key === 'Backspace' &&
+                            row[0].value === '' &&
+                            columns > 1 &&
+                            rows[rowIndex].slice(1).some(cell => cell.value !== '')
+                          ) {
+                            e.preventDefault();
+                            if (pendingDeleteRow !== rowIndex) {
+                              setPendingDeleteRow(rowIndex);
+                              clearTimeout(pendingDeleteTimer.current);
+                              pendingDeleteTimer.current = setTimeout(() => {
+                                setPendingDeleteRow(null);
+                              }, 5000);
+                            } else {
+                              clearTimeout(pendingDeleteTimer.current);
+                              setPendingDeleteRow(null);
+                              setRows(prev => {
+                                const copy = [...prev];
+                                copy.splice(rowIndex, 1);
+                                return copy;
+                              });
+                              setTimeout(() => focusInput(Math.max(0, rowIndex - 1), 0, 'value'), 0);
+                            }
+                            return;
+                          }
+                          // Backspace on empty level-1 with all sub-values empty => remove row
+                          if (
+                            e.key === 'Backspace' &&
+                            row[0].value === '' &&
+                            columns > 1 &&
+                            rows[rowIndex].slice(1).every(cell => cell.value === '')
+                          ) {
+                            e.preventDefault();
+                            setRows(prev => {
+                              const copy = [...prev];
+                              copy.splice(rowIndex, 1);
+                              return copy;
+                            });
+                            // focus previous row's value
+                            setTimeout(() => {
+                              const target = Math.max(0, rowIndex - 1);
+                              focusInput(target, 0, 'value');
+                            }, 0);
+                            return;
+                          }
+                          // Custom backspace: if only one column and value empty, delete row
+                          if (
+                            e.key === 'Backspace' &&
+                            columns === 1 &&
+                            row[0].value === ''
+                          ) {
+                            e.preventDefault();
+                            if (rowIndex > 0) {
+                              // Remove this row
+                              setRows(prev => {
+                                const copy = [...prev];
+                                copy.splice(rowIndex, 1);
+                                return copy;
+                              });
+                              // Focus previous row's value after state update
+                              setTimeout(() => focusInput(rowIndex - 1, 0, 'value'), 0);
+                            }
+                            return;
+                          }
+                          // Preserve existing arrow-left reveal and other handling
+                          if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
+                            e.preventDefault();
+                            setEditingCell(`${rowIndex}-0-name`);
+                            focusInput(rowIndex, 0, 'name');
+                            return;
+                          }
+                          handleKeyDown(e, rowIndex, 0);
+                        }}
+                        ref={el => (inputRefs.current[`${rowIndex}-0-value`] = el)}
+                        aria-label={`Row ${rowIndex + 1} column 1 value`}
+                        onFocus={() => { setEditingCell(`${rowIndex}-0-value`); setPendingDeleteRow(null); clearTimeout(pendingDeleteTimer.current); setFocusedCell({ row: rowIndex, col: 0 }); }}
+                        onBlur={() => setFocusedCell({ row: null, col: null })}
+                        onDoubleClick={e => e.target.select()}
+                      />
+                    </div>
+                    {!reorderMode && columns > 1 && (
+                      <ul style={{ listStyleType: 'none', paddingLeft: 16, marginTop: 4 }}>
+                        {row.slice(1).map((cell, colIndex) => (
+                          <li key={colIndex}>
+                            <div
+                              className={
+                                'sub-bullet__cell' +
+                                (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name` ? ' collapsed-name' : '') +
+                                (pendingDeleteCol === colIndex ? ' pending-delete-col' : '')
+                              }
                               style={{
-                                fontSize: '16px',
-                                color: '#000',
-                                marginRight: '8px',
-                                cursor: 'grab'
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              onMouseDown={e => {
+                                // Only focus when clicking the container, not its child inputs
+                                if (e.target !== e.currentTarget) return;
+                                e.preventDefault();
+                                setEditingCell(`${rowIndex}-${colIndex + 1}-name`);
+                                focusInput(rowIndex, colIndex + 1, 'name');
                               }}
                             >
-                              drag_indicator
-                            </span>
-                          )}
-                          {/* existing row content */}
-                          <div className="sub-bullet__cell" style={{ display: 'flex', gap: '4px' }}>
-                            {!reorderMode && (
                               <input
-                                className="cell-name"
                                 type="text"
                                 placeholder="Title"
-                                value={row[0].name}
-                                onChange={e => updateCell(rowIndex, 0, 'name', e.target.value)}
+                                value={row[colIndex + 1].name}
+                                onChange={e => updateCell(rowIndex, colIndex + 1, 'name', e.target.value)}
+                                style={{
+                                  // circle when name exists and not focused; pill otherwise
+                                  width: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`)
+                                    ? '16px'
+                                    : '15%',
+                                  height: '16px',
+                                  borderRadius: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`)
+                                    ? '50%'
+                                    : '999px',
+                                  backgroundColor: `var(--col-color-${colIndex + 2})`,
+                                  color: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`)
+                                    ? 'transparent'
+                                    : '#333',
+                                  overflow: 'hidden',
+                                  border: 'none',
+                                  padding: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`) ? '0' : '0 8px',
+                                  transition: 'all 0.2s ease'
+                                }}
                                 onKeyDown={e => {
-                                  if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    focusInput(rowIndex, 0, 'value');
-                                    return;
-                                  }
                                   if (e.key === 'Tab' && !e.shiftKey) {
                                     e.preventDefault();
-                                    focusInput(rowIndex, 0, 'value');
+                                    focusInput(rowIndex, colIndex + 1, 'value');
                                     return;
                                   }
                                   if (e.key === 'ArrowRight' && e.target.selectionStart === e.target.value.length) {
                                     e.preventDefault();
-                                    focusInput(rowIndex, 0, 'value');
-                                    return;
+                                    focusInput(rowIndex, colIndex + 1, 'value');
                                   }
-                                  handleKeyDown(e, rowIndex, 0);
+                                  handleKeyDown(e, rowIndex, colIndex + 1);
                                 }}
-                                ref={el => (inputRefs.current[`${rowIndex}-0-name`] = el)}
-                                aria-label={`Row ${rowIndex + 1} column 1 name`}
-                                onFocus={() => setFocusedCell({ row: rowIndex, col: 0 })}
-                                onBlur={() => setFocusedCell({ row: null, col: null })}
+                                ref={(el) => (inputRefs.current[`${rowIndex}-${colIndex + 1}-name`] = el)}
+                                aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} name`}
+                                onFocus={() => { setEditingCell(`${rowIndex}-${colIndex + 1}-name`); setFocusedCell({ row: rowIndex, col: colIndex + 1 }); }}
+                                onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
                                 onDoubleClick={e => e.target.select()}
                               />
-                            )}
-                            <input
-                              className="cell-value"
-                              type="text"
-                              placeholder="Value"
-                              style={{ width: reorderMode ? '200%' : '100%' }}
-                              value={row[0].value}
-                              onChange={e => updateCell(rowIndex, 0, 'value', e.target.value)}
-                              onKeyDown={e => {
-                                // Two-step deletion when sub-bullets have values
-                                if (
-                                  e.key === 'Backspace' &&
-                                  row[0].value === '' &&
-                                  columns > 1 &&
-                                  rows[rowIndex].slice(1).some(cell => cell.value !== '')
-                                ) {
-                                  e.preventDefault();
-                                  if (pendingDeleteRow !== rowIndex) {
-                                    setPendingDeleteRow(rowIndex);
-                                    clearTimeout(pendingDeleteTimer.current);
-                                    pendingDeleteTimer.current = setTimeout(() => {
-                                      setPendingDeleteRow(null);
-                                    }, 5000);
-                                  } else {
-                                    clearTimeout(pendingDeleteTimer.current);
-                                    setPendingDeleteRow(null);
-                                    setRows(prev => {
-                                      const copy = [...prev];
-                                      copy.splice(rowIndex, 1);
-                                      return copy;
-                                    });
-                                    setTimeout(() => focusInput(Math.max(0, rowIndex - 1), 0, 'value'), 0);
-                                  }
-                                  return;
-                                }
-                                // Backspace on empty level-1 with all sub-values empty => remove row
-                                if (
-                                  e.key === 'Backspace' &&
-                                  row[0].value === '' &&
-                                  columns > 1 &&
-                                  rows[rowIndex].slice(1).every(cell => cell.value === '')
-                                ) {
-                                  e.preventDefault();
-                                  setRows(prev => {
-                                    const copy = [...prev];
-                                    copy.splice(rowIndex, 1);
-                                    return copy;
-                                  });
-                                  // focus previous row's value
-                                  setTimeout(() => {
-                                    const target = Math.max(0, rowIndex - 1);
-                                    focusInput(target, 0, 'value');
-                                  }, 0);
-                                  return;
-                                }
-                                // Custom backspace: if only one column and value empty, delete row
-                                if (
-                                  e.key === 'Backspace' &&
-                                  columns === 1 &&
-                                  row[0].value === ''
-                                ) {
-                                  e.preventDefault();
-                                  if (rowIndex > 0) {
-                                    // Remove this row
-                                    setRows(prev => {
-                                      const copy = [...prev];
-                                      copy.splice(rowIndex, 1);
-                                      return copy;
-                                    });
-                                    // Focus previous row's value after state update
-                                    setTimeout(() => focusInput(rowIndex - 1, 0, 'value'), 0);
-                                  }
-                                  return;
-                                }
-                                // Preserve existing arrow-left reveal and other handling
-                                if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
-                                  e.preventDefault();
-                                  setEditingCell(`${rowIndex}-0-name`);
-                                  focusInput(rowIndex, 0, 'name');
-                                  return;
-                                }
-                                handleKeyDown(e, rowIndex, 0);
-                              }}
-                              ref={el => (inputRefs.current[`${rowIndex}-0-value`] = el)}
-                              aria-label={`Row ${rowIndex + 1} column 1 value`}
-                              onFocus={() => { setEditingCell(`${rowIndex}-0-value`); setPendingDeleteRow(null); clearTimeout(pendingDeleteTimer.current); setFocusedCell({ row: rowIndex, col: 0 }); }}
-                              onBlur={() => setFocusedCell({ row: null, col: null })}
-                              onDoubleClick={e => e.target.select()}
-                            />
-                          </div>
-                          {!reorderMode && columns > 1 && (
-                            <ul style={{ listStyleType: 'none', paddingLeft: 16, marginTop: 4 }}>
-                              {row.slice(1).map((cell, colIndex) => (
-                                <li key={colIndex}>
-                                  <div
-                                    className={
-                                      'sub-bullet__cell' +
-                                      (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name` ? ' collapsed-name' : '') +
-                                      (pendingDeleteCol === colIndex ? ' pending-delete-col' : '')
-                                    }
-                                    style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      gap: '4px'
-                                    }}
-                                    onMouseDown={e => {
-                                      // Only focus when clicking the container, not its child inputs
-                                      if (e.target !== e.currentTarget) return;
+                              <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+                                <textarea
+                                  placeholder="Value"
+                                  value={row[colIndex + 1].value}
+                                  onChange={e => {
+                                    updateCell(rowIndex, colIndex + 1, 'value', e.target.value);
+                                    e.target.style.height = 'auto';
+                                    e.target.style.height = `${e.target.scrollHeight}px`;
+                                  }}
+                                  style={{ flex: 1, resize: 'vertical', minHeight: '1.5em', overflow: 'hidden', paddingRight: '1.6em' }}
+                                  rows={1}
+                                  onKeyDown={e => {
+                                    // Quickfill handling
+                                    if (
+                                      handleQuickfillKeyDown(e, rowIndex, colIndex + 1)
+                                    ) return;
+                                    // Two-step deletion for sub-bullets with mixed data
+                                    if (
+                                      e.key === 'Backspace' &&
+                                      e.target.value === '' &&
+                                      columns > 1 &&
+                                      rows.some(r => r[colIndex + 1].value !== '')
+                                    ) {
                                       e.preventDefault();
-                                      setEditingCell(`${rowIndex}-${colIndex + 1}-name`);
-                                      focusInput(rowIndex, colIndex + 1, 'name');
-                                    }}
-                                  >
-                                    <input
-                                      type="text"
-                                      placeholder="Title"
-                                      value={row[colIndex + 1].name}
-                                      onChange={e => updateCell(rowIndex, colIndex + 1, 'name', e.target.value)}
-                                      style={{
-                                        // circle when name exists and not focused; pill otherwise
-                                        width: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`)
-                                          ? '16px'
-                                          : '15%',
-                                        height: '16px',
-                                        borderRadius: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`)
-                                          ? '50%'
-                                          : '999px',
-                                        backgroundColor: `var(--col-color-${colIndex + 2})`,
-                                        color: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`)
-                                          ? 'transparent'
-                                          : '#333',
-                                        overflow: 'hidden',
-                                        border: 'none',
-                                        padding: (row[colIndex + 1].name && editingCell !== `${rowIndex}-${colIndex + 1}-name`) ? '0' : '0 8px',
-                                        transition: 'all 0.2s ease'
-                                      }}
-                                      onKeyDown={e => {
-                                        if (e.key === 'Tab' && !e.shiftKey) {
-                                          e.preventDefault();
-                                          focusInput(rowIndex, colIndex + 1, 'value');
-                                          return;
-                                        }
-                                        if (e.key === 'ArrowRight' && e.target.selectionStart === e.target.value.length) {
-                                          e.preventDefault();
-                                          focusInput(rowIndex, colIndex + 1, 'value');
-                                        }
-                                        handleKeyDown(e, rowIndex, colIndex + 1);
-                                      }}
-                                      ref={(el) => (inputRefs.current[`${rowIndex}-${colIndex + 1}-name`] = el)}
-                                      aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} name`}
-                                      onFocus={() => { setEditingCell(`${rowIndex}-${colIndex + 1}-name`); setFocusedCell({ row: rowIndex, col: colIndex + 1 }); }}
-                                      onBlur={() => { setEditingCell(null); setFocusedCell({ row: null, col: null }); }}
-                                      onDoubleClick={e => e.target.select()}
-                                    />
-                                    <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-                                      <textarea
-                                        placeholder="Value"
-                                        value={row[colIndex + 1].value}
-                                        onChange={e => {
-                                          updateCell(rowIndex, colIndex + 1, 'value', e.target.value);
-                                          e.target.style.height = 'auto';
-                                          e.target.style.height = `${e.target.scrollHeight}px`;
-                                        }}
-                                        style={{ flex: 1, resize: 'vertical', minHeight: '1.5em', overflow: 'hidden', paddingRight: '1.6em' }}
-                                        rows={1}
-                                        onKeyDown={e => {
-                                          // Quickfill handling
-                                          if (
-                                            handleQuickfillKeyDown(e, rowIndex, colIndex + 1)
-                                          ) return;
-                                          // Two-step deletion for sub-bullets with mixed data
-                                          if (
-                                            e.key === 'Backspace' &&
-                                            e.target.value === '' &&
-                                            columns > 1 &&
-                                            rows.some(r => r[colIndex + 1].value !== '')
-                                          ) {
-                                            e.preventDefault();
-                                            if (pendingDeleteCol !== colIndex) {
-                                              setPendingDeleteCol(colIndex);
-                                              clearTimeout(pendingDeleteColTimer.current);
-                                              pendingDeleteColTimer.current = setTimeout(() => {
-                                                setPendingDeleteCol(null);
-                                              }, 5000);
-                                            } else {
-                                              clearTimeout(pendingDeleteColTimer.current);
-                                              setPendingDeleteCol(null);
-                                              // remove column
-                                              setColumns(prev => prev - 1);
-                                              setRows(prevRows =>
-                                                prevRows.map(r => {
-                                                  const copy = [...r];
-                                                  copy.splice(colIndex + 1, 1);
-                                                  return copy;
-                                                })
-                                              );
-                                              // focus prior column or row label
-                                              setTimeout(() => {
-                                                if (colIndex > 0) {
-                                                  focusInput(rowIndex, colIndex, 'value');
-                                                } else {
-                                                  focusInput(rowIndex, 0, 'value');
-                                                }
-                                              }, 0);
-                                            }
-                                            return;
-                                          }
-                                          // If backspace on an empty sub-cell and entire column is empty: remove that column across all rows
-                                          if (
-                                            e.key === 'Backspace' &&
-                                            e.target.value === '' &&
-                                            rows.every(r => r[colIndex + 1].value === '')
-                                          ) {
-                                            e.preventDefault();
-                                            // remove column
-                                            setColumns(prev => prev - 1);
-                                            setRows(prevRows =>
-                                              prevRows.map(r => {
-                                                const copy = [...r];
-                                                copy.splice(colIndex + 1, 1);
-                                                return copy;
-                                              })
-                                            );
-                                            // determine new focus position: same row, previous column (or level-1 if none)
-                                            setTimeout(() => {
-                                              if (colIndex > 0) {
-                                                focusInput(rowIndex, colIndex, 'value');
-                                              } else {
-                                                focusInput(rowIndex, 0, 'value');
-                                              }
-                                            }, 0);
-                                            return;
-                                          }
-                                          // Enter creates new column/row behavior; Shift+Enter inserts newline
-                                          if (e.key === 'Enter' && !e.shiftKey) {
-                                            e.preventDefault();
-                                            handleKeyDown(e, rowIndex, colIndex + 1);
-                                          }
-                                          // ArrowUp/ArrowDown navigate between cells
-                                          else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                                            e.preventDefault();
-                                            handleKeyDown(e, rowIndex, colIndex + 1);
-                                          }
-                                          // ArrowLeft at start moves focus back to name input and set editingCell
-                                          else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
-                                            e.preventDefault();
-                                            const key = `${rowIndex}-${colIndex + 1}-name`;
-                                            setEditingCell(key);
-                                            focusInput(rowIndex, colIndex + 1, 'name');
-                                            return;
-                                          }
-                                        }}
-                                        onMouseDown={e => {
-                                          if (
-                                            quickfillState.open &&
-                                            quickfillState.rowIndex === rowIndex &&
-                                            quickfillState.colIndex === colIndex + 1
-                                          ) {
-                                            e.preventDefault();
-                                            closeQuickfill();
-                                            setTimeout(() => focusInput(rowIndex, colIndex + 1, 'value'), 0);
-                                          }
-                                        }}
-                                        ref={el => (inputRefs.current[`${rowIndex}-${colIndex + 1}-value`] = el)}
-                                        aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} value`}
-                                        onFocus={e => {
-                                          setEditingCell(`${rowIndex}-${colIndex + 1}-value`);
+                                      if (pendingDeleteCol !== colIndex) {
+                                        setPendingDeleteCol(colIndex);
+                                        clearTimeout(pendingDeleteColTimer.current);
+                                        pendingDeleteColTimer.current = setTimeout(() => {
                                           setPendingDeleteCol(null);
-                                          clearTimeout(pendingDeleteColTimer.current);
-                                          setFocusedCell({ row: rowIndex, col: colIndex + 1 });
-                                          // Quickfill: show triangle if field is empty and options exist
-                                          if (
-                                            e.target.value === '' &&
-                                            getQuickfillOptions(colIndex + 1, rowIndex).length > 0
-                                          ) {
-                                            // Don't open dropdown here, just let triangle show
+                                        }, 5000);
+                                      } else {
+                                        clearTimeout(pendingDeleteColTimer.current);
+                                        setPendingDeleteCol(null);
+                                        // remove column
+                                        setColumns(prev => prev - 1);
+                                        setRows(prevRows =>
+                                          prevRows.map(r => {
+                                            const copy = [...r];
+                                            copy.splice(colIndex + 1, 1);
+                                            return copy;
+                                          })
+                                        );
+                                        // focus prior column or row label
+                                        setTimeout(() => {
+                                          if (colIndex > 0) {
+                                            focusInput(rowIndex, colIndex, 'value');
                                           } else {
-                                            closeQuickfill();
+                                            focusInput(rowIndex, 0, 'value');
                                           }
-                                        }}
-                                        onBlur={() => {
-                                          setEditingCell(null);
-                                          setFocusedCell({ row: null, col: null });
-                                          // Delay closing quickfill to allow click on dropdown
-                                          setTimeout(() => {
-                                            closeQuickfill();
-                                          }, 150);
-                                        }}
-                                        onDoubleClick={e => e.target.select()}
-                                      />
-                                      {/* Triangle indicator if field is empty and options exist and dropdown not open */}
-                                      {row[colIndex + 1].value === '' && getQuickfillOptions(colIndex + 1, rowIndex).length > 0 && !(quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex + 1) && (
-                                        <span
-                                          onMouseDown={e => {
-                                            e.preventDefault();
-                                            openQuickfill(rowIndex, colIndex + 1);
-                                          }}
+                                        }, 0);
+                                      }
+                                      return;
+                                    }
+                                    // If backspace on an empty sub-cell and entire column is empty: remove that column across all rows
+                                    if (
+                                      e.key === 'Backspace' &&
+                                      e.target.value === '' &&
+                                      rows.every(r => r[colIndex + 1].value === '')
+                                    ) {
+                                      e.preventDefault();
+                                      // remove column
+                                      setColumns(prev => prev - 1);
+                                      setRows(prevRows =>
+                                        prevRows.map(r => {
+                                          const copy = [...r];
+                                          copy.splice(colIndex + 1, 1);
+                                          return copy;
+                                        })
+                                      );
+                                      // determine new focus position: same row, previous column (or level-1 if none)
+                                      setTimeout(() => {
+                                        if (colIndex > 0) {
+                                          focusInput(rowIndex, colIndex, 'value');
+                                        } else {
+                                          focusInput(rowIndex, 0, 'value');
+                                        }
+                                      }, 0);
+                                      return;
+                                    }
+                                    // Enter creates new column/row behavior; Shift+Enter inserts newline
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                      e.preventDefault();
+                                      handleKeyDown(e, rowIndex, colIndex + 1);
+                                    }
+                                    // ArrowUp/ArrowDown navigate between cells
+                                    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                      e.preventDefault();
+                                      handleKeyDown(e, rowIndex, colIndex + 1);
+                                    }
+                                    // ArrowLeft at start moves focus back to name input and set editingCell
+                                    else if (e.key === 'ArrowLeft' && e.target.selectionStart === 0) {
+                                      e.preventDefault();
+                                      const key = `${rowIndex}-${colIndex + 1}-name`;
+                                      setEditingCell(key);
+                                      focusInput(rowIndex, colIndex + 1, 'name');
+                                      return;
+                                    }
+                                  }}
+                                  onMouseDown={e => {
+                                    if (
+                                      quickfillState.open &&
+                                      quickfillState.rowIndex === rowIndex &&
+                                      quickfillState.colIndex === colIndex + 1
+                                    ) {
+                                      e.preventDefault();
+                                      closeQuickfill();
+                                      setTimeout(() => focusInput(rowIndex, colIndex + 1, 'value'), 0);
+                                    }
+                                  }}
+                                  ref={el => (inputRefs.current[`${rowIndex}-${colIndex + 1}-value`] = el)}
+                                  aria-label={`Row ${rowIndex + 1} column ${colIndex + 2} value`}
+                                  onFocus={e => {
+                                    setEditingCell(`${rowIndex}-${colIndex + 1}-value`);
+                                    setPendingDeleteCol(null);
+                                    clearTimeout(pendingDeleteColTimer.current);
+                                    setFocusedCell({ row: rowIndex, col: colIndex + 1 });
+                                    // Quickfill: show triangle if field is empty and options exist
+                                    if (
+                                      e.target.value === '' &&
+                                      getQuickfillOptions(colIndex + 1, rowIndex).length > 0
+                                    ) {
+                                      // Don't open dropdown here, just let triangle show
+                                    } else {
+                                      closeQuickfill();
+                                    }
+                                  }}
+                                  onBlur={() => {
+                                    setEditingCell(null);
+                                    setFocusedCell({ row: null, col: null });
+                                    // Delay closing quickfill to allow click on dropdown
+                                    setTimeout(() => {
+                                      closeQuickfill();
+                                    }, 150);
+                                  }}
+                                  onDoubleClick={e => e.target.select()}
+                                />
+                                {/* Triangle indicator if field is empty and options exist and dropdown not open */}
+                                {row[colIndex + 1].value === '' && getQuickfillOptions(colIndex + 1, rowIndex).length > 0 && !(quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex + 1) && (
+                                  <span
+                                    onMouseDown={e => {
+                                      e.preventDefault();
+                                      openQuickfill(rowIndex, colIndex + 1);
+                                    }}
+                                    style={{
+                                      position: 'absolute',
+                                      right: 6,
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: 0,
+                                      height: 0,
+                                      borderTop: '6px solid transparent',
+                                      borderBottom: '6px solid transparent',
+                                      borderLeft: '7px solid #888',
+                                      cursor: 'pointer'
+                                    }}
+                                  />
+                                )}
+                                {/* Quickfill dropdown */}
+                                {(quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex + 1) && (
+                                  <div
+                                    style={{
+                                      position: 'absolute',
+                                      left: 0,
+                                      right: 0,
+                                      top: 'calc(100% + 2px)',
+                                      zIndex: 10,
+                                      background: '#fff',
+                                      border: '1px solid #bbb',
+                                      borderRadius: 4,
+                                      boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                      minWidth: '110px',
+                                      maxHeight: '120px',
+                                      overflowY: 'visible',
+                                    }}
+                                    tabIndex={-1}
+                                  >
+                                    {getQuickfillOptions(colIndex + 1, rowIndex).length === 0 ? (
+                                      <div style={{ padding: '6px 12px', color: '#888', fontSize: '0.95em' }}>(No suggestions)</div>
+                                    ) : (
+                                      getQuickfillOptions(colIndex + 1, rowIndex).map((v, idx) => (
+                                        <div
+                                          key={idx}
                                           style={{
-                                            position: 'absolute',
-                                            right: 6,
-                                            top: '50%',
-                                            transform: 'translateY(-50%)',
-                                            width: 0,
-                                            height: 0,
-                                            borderTop: '6px solid transparent',
-                                            borderBottom: '6px solid transparent',
-                                            borderLeft: '7px solid #888',
+                                            padding: '6px 12px',
+                                            background: idx === quickfillState.selectedIndex ? '#e3f2fd' : '#fff',
+                                            color: '#222',
+                                            fontSize: '1em',
                                             cursor: 'pointer'
                                           }}
-                                        />
-                                      )}
-                                      {/* Quickfill dropdown */}
-                                      {(quickfillState.open && quickfillState.rowIndex === rowIndex && quickfillState.colIndex === colIndex + 1) && (
-                                        <div
-                                          style={{
-                                            position: 'absolute',
-                                            left: 0,
-                                            right: 0,
-                                            top: 'calc(100% + 2px)',
-                                            zIndex: 10,
-                                            background: '#fff',
-                                            border: '1px solid #bbb',
-                                            borderRadius: 4,
-                                            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                            minWidth: '110px',
-                                            maxHeight: '120px',
-                                            overflowY: 'visible',
+                                          onMouseDown={e => {
+                                            // Insert value and close dropdown
+                                            e.preventDefault();
+                                            updateCell(rowIndex, colIndex + 1, 'value', v);
+                                            closeQuickfill();
+                                            setTimeout(() => focusInput(rowIndex, colIndex + 1, 'value'), 0);
                                           }}
-                                          tabIndex={-1}
+                                          onMouseEnter={() => setQuickfillState(state => ({ ...state, selectedIndex: idx }))}
                                         >
-                                          {getQuickfillOptions(colIndex + 1, rowIndex).length === 0 ? (
-                                            <div style={{ padding: '6px 12px', color: '#888', fontSize: '0.95em' }}>(No suggestions)</div>
-                                          ) : (
-                                            getQuickfillOptions(colIndex + 1, rowIndex).map((v, idx) => (
-                                              <div
-                                                key={idx}
-                                                style={{
-                                                  padding: '6px 12px',
-                                                  background: idx === quickfillState.selectedIndex ? '#e3f2fd' : '#fff',
-                                                  color: '#222',
-                                                  fontSize: '1em',
-                                                  cursor: 'pointer'
-                                                }}
-                                                onMouseDown={e => {
-                                                  // Insert value and close dropdown
-                                                  e.preventDefault();
-                                                  updateCell(rowIndex, colIndex + 1, 'value', v);
-                                                  closeQuickfill();
-                                                  setTimeout(() => focusInput(rowIndex, colIndex + 1, 'value'), 0);
-                                                }}
-                                                onMouseEnter={() => setQuickfillState(state => ({ ...state, selectedIndex: idx }))}
-                                              >
-                                                {v}
-                                              </div>
-                                            ))
-                                          )}
+                                          {v}
                                         </div>
-                                      )}
-                                    </div>
+                                      ))
+                                    )}
                                   </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </li>
-                      </React.Fragment>
-                    ))}
-                  </React.Fragment>
-                ));
-              })()}
-              {dragOverIndex === rows[0].length - 1 && insertionLineTop != null && (
+                                )}
+                              </div>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                </React.Fragment>
+              ))}
+              {reorderMode && dragOverIndex === rows.length && insertionLineTop != null && (
                 <div className="insertion-line" style={{ top: `${insertionLineTop}px` }} />
               )}
             </ul>
@@ -2738,7 +2640,7 @@ export default function App() {
       color: '#888',
       marginTop: '16px'
     }}>
-      v4.3.4
+      v4.3.2
     </div>
     </>
   );
