@@ -1020,31 +1020,7 @@ const ReorderMode = ({
           }}></div>
         </div>
       )}
-      <div style={{ marginBottom: '16px' }}>
-        <h3 style={{ 
-          color: '#333', 
-          marginBottom: '8px',
-          borderBottom: '2px solid #3f51b5',
-          paddingBottom: '8px'
-        }}>
-          Reordering {reorderAxis === 'rows' ? 'Rows' : 'Columns'}
-        </h3>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          padding: '8px',
-          backgroundColor: '#e3f2fd',
-          borderRadius: '4px',
-          marginBottom: '16px'
-        }}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="#2196f3" style={{ marginRight: '8px' }}>
-            <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-11h2V6h-2v3z"></path>
-          </svg>
-          <span style={{ fontSize: '14px', color: '#0d47a1' }}>
-            Drag and drop to reorder. {sections.length ? 'Items can be moved within or between sections.' : ''}
-          </span>
-        </div>
-      </div>
+      {/* Header section removed for cleaner UI */}
       
       {reorderArray.length === 0 ? (
         <div>No {reorderAxis} to reorder</div>
