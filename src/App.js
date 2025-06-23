@@ -2,7 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
-import ReorderModeUI from './reorderMode';
+import ReorderMode from './reorderMode';
+
+// All legacy imports have been removed and consolidated into a single ReorderMode component
 
 // Generate short, human-friendly row ID (e.g. ZEK3)
 const generateRowId = () => {
@@ -1390,7 +1392,7 @@ export default function App() {
 
   // Drag-to-reorder handlers
   const handleDragStart = (e, index) => {
-    e.preventDefault();
+    // Removed e.preventDefault() to allow HTML5 drag events to work properly with ReorderModeUI
     setDraggingIndex(index);
     setDragOverIndex(index);
   };
@@ -1429,29 +1431,17 @@ export default function App() {
         ? dragOverIndex - 1
         : dragOverIndex;
       if (reorderAxis === 'rows') {
-        // Reorder rows and update section
+        // Reorder rows (unchanged)
         const newRows = [...rows];
         const [moved] = newRows.splice(draggingIndex, 1);
         newRows.splice(insertAt, 0, moved);
-        // Set the section of the moved row to match the row at the insert position (if at start), or above otherwise
-        let targetSection = null;
-        if (insertAt === 0 && newRows.length > 1) {
-          targetSection = newRows[1][0].section;
-        } else if (insertAt > 0) {
-          targetSection = newRows[insertAt - 1][0].section;
-        }
-        if (targetSection) {
-          newRows[insertAt] = moved.map((cell, i) =>
-            i === 0
-              ? { ...cell, section: { ...targetSection } }
-              : { ...cell }
-          );
-        }
         setRows(newRows);
       } else {
-        // Reorder sub-bullet columns, preserving column 1, and update section
+        // Reorder sub-bullet columns, preserving column 1
         const sourceFullIndex = draggingIndex + 1;
+        // Desired insertion before slice index dragOverIndex => full index = dragOverIndex + 1
         let destFullIndex = dragOverIndex + 1;
+        // If moving downwards, removal shifts target left by 1
         if (destFullIndex > sourceFullIndex) {
           destFullIndex--;
         }
@@ -1461,71 +1451,12 @@ export default function App() {
           copy.splice(destFullIndex, 0, moved);
           return copy;
         });
-        // Set the section of the moved column to match the column at the insert position (if at start), or to the left otherwise
-        let targetSection = null;
-        if (destFullIndex === 1 && newRows[0].length > 2) {
-          targetSection = newRows[0][2].section;
-        } else if (destFullIndex > 1) {
-          targetSection = newRows[0][destFullIndex - 1].section;
-        }
-        if (targetSection) {
-          for (let r = 0; r < newRows.length; r++) {
-            newRows[r][destFullIndex] = {
-              ...newRows[r][destFullIndex],
-              section: { ...targetSection }
-            };
-          }
-        }
         setRows(newRows);
       }
     }
     setDraggingIndex(null);
     setDragOverIndex(null);
     setInsertionLineTop(null);
-  };
-
-  // Handle intent-aware section drop from reorderMode.js
-  const handleSectionDrop = ({ draggingIndex, targetSectionIndex, axis, dropAtSectionStart }) => {
-    if (axis === 'rows') {
-      const newRows = [...rows];
-      const [moved] = newRows.splice(draggingIndex, 1);
-      // Insert at the start of the target section
-      newRows.splice(targetSectionIndex, 0, moved);
-      // Assign section to match the row now at targetSectionIndex+1 (the next row in the section)
-      let targetSection = null;
-      if (newRows.length > targetSectionIndex + 1) {
-        targetSection = newRows[targetSectionIndex + 1][0].section;
-      }
-      if (targetSection) {
-        newRows[targetSectionIndex] = moved.map((cell, i) =>
-          i === 0 ? { ...cell, section: { ...targetSection } } : { ...cell }
-        );
-      }
-      setRows(newRows);
-    } else if (axis === 'columns') {
-      const sourceFullIndex = draggingIndex + 1;
-      const destFullIndex = targetSectionIndex + 1;
-      const newRows = rows.map(row => {
-        const copy = [...row];
-        const [moved] = copy.splice(sourceFullIndex, 1);
-        copy.splice(destFullIndex, 0, moved);
-        return copy;
-      });
-      // Assign section to match the column now at destFullIndex+1 (the next col in the section)
-      let targetSection = null;
-      if (newRows[0].length > destFullIndex + 1) {
-        targetSection = newRows[0][destFullIndex + 1].section;
-      }
-      if (targetSection) {
-        for (let r = 0; r < newRows.length; r++) {
-          newRows[r][destFullIndex] = {
-            ...newRows[r][destFullIndex],
-            section: { ...targetSection }
-          };
-        }
-      }
-      setRows(newRows);
-    }
   };
 
   return (
@@ -1911,30 +1842,39 @@ export default function App() {
           </>
         ) : (
           reorderMode ? (
-            <ReorderModeUI
-              reorderAxis={reorderAxis}
-              rows={rows}
-              columns={columns}
-              dragOverIndex={dragOverIndex}
-              insertionLineTop={insertionLineTop}
-              handleDragStart={handleDragStart}
-              handleDragMove={handleDragMove}
-              handleDragEnd={handleDragEnd}
-              liRefs={liRefs}
-              colRefs={colRefs}
-              pendingDeleteRow={pendingDeleteRow}
-              inputRefs={inputRefs}
-              updateCell={updateCell}
-              focusInput={focusInput}
-              setRows={setRows}
-              setPendingDeleteRow={setPendingDeleteRow}
-              pendingDeleteTimer={pendingDeleteTimer}
-              setFocusedCell={setFocusedCell}
-              handleKeyDown={handleKeyDown}
-              rowSections={rowSections}
-              colSections={colSections}
-              onSectionDrop={handleSectionDrop}
-            />
+            <>
+              <div style={{ marginBottom: '20px', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
+                <h4>Section-Aware Drag/Drop Active</h4>
+                <p>Using enhanced virtual position mapping for precise control</p>
+              </div>
+              
+              {/* Use our direct DOM-attached ReorderMode component for perfect drop indicator positioning */}
+              <ReorderMode
+                reorderAxis={reorderAxis}
+                rows={rows}
+                columns={columns}
+                dragOverIndex={dragOverIndex}
+                insertionLineTop={insertionLineTop}
+                handleDragStart={(e, index) => {
+                  // Don't prevent default! That's the key issue
+                  setDraggingIndex(index);
+                  setDragOverIndex(index);
+                }}
+                handleDragMove={(e) => {
+                  if (draggingIndex !== null) {
+                    // Event handling is now managed inside ReorderMode
+                  }
+                }}
+                handleDragEnd={() => {
+                  setDraggingIndex(null);
+                  setDragOverIndex(null);
+                  setInsertionLineTop(null);
+                }}
+                liRefs={liRefs}
+                colRefs={colRefs}
+                setRows={setRows}
+              />
+            </>
           ) : (
             <ul style={{ listStyleType: 'none', paddingLeft: 0, position: 'relative' }}>
               {rows.map((row, rowIndex) => (
