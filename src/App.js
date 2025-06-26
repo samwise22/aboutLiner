@@ -3,6 +3,7 @@ import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
 import ReorderMode from './reorderMode';
+import SortableReorderMode from './SortableReorderMode';
 
 // All legacy imports have been removed and consolidated into a single ReorderMode component
 
@@ -1843,45 +1844,24 @@ export default function App() {
         ) : (
           reorderMode ? (
             <>
-              <div style={{ marginBottom: '20px', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
-                <h4>Section-Aware Drag/Drop Active</h4>
-                <p>Using enhanced virtual position mapping for precise control</p>
-              </div>
-              
-              {/* Use our direct DOM-attached ReorderMode component for perfect drop indicator positioning */}
-              <ReorderMode
+              {/* Use the new SortableReorderMode component with react-sortablejs for better drag and drop */}
+              <SortableReorderMode
                 reorderAxis={reorderAxis}
                 rows={rows}
                 columns={columns}
-                dragOverIndex={dragOverIndex}
-                insertionLineTop={insertionLineTop}
-                handleDragStart={(e, index) => {
-                  // Don't prevent default! That's the key issue
-                  setDraggingIndex(index);
-                  setDragOverIndex(index);
-                }}
-                handleDragMove={(e) => {
-                  if (draggingIndex !== null) {
-                    // Event handling is now managed inside ReorderMode
-                  }
-                }}
-                handleDragEnd={() => {
+                setRows={(newRows) => {
+                  setRows(newRows);
+                  // Reset any lingering drag state
                   setDraggingIndex(null);
                   setDragOverIndex(null);
                   setInsertionLineTop(null);
                 }}
-                liRefs={liRefs}
-                colRefs={colRefs}
-                setRows={setRows}
               />
             </>
           ) : (
             <ul style={{ listStyleType: 'none', paddingLeft: 0, position: 'relative' }}>
               {rows.map((row, rowIndex) => (
                 <React.Fragment key={rowIndex}>
-                  {reorderMode && dragOverIndex === rowIndex && insertionLineTop != null && (
-                    <div className="insertion-line" style={{ top: `${insertionLineTop}px` }} />
-                  )}
                   <li
                     ref={el => liRefs.current[rowIndex] = el}
                     key={rowIndex}

@@ -27,119 +27,58 @@ const POSITION_TYPE = {
 
 /**
  * Direct DOM-attached Drop Indicator - for maximum positioning accuracy
+ * NOTE: This component is referenced in several places in the render functions
+ * and must return null to avoid rendering visual indicators
  */
 const DropIndicator = ({ item }) => {
-  if (!item) return null;
-  
-  // Use the DOM node directly
-  const element = item.node;
-  if (!element) return null;
-  
-  // Get the client rect for precise positioning
-  const rect = element.getBoundingClientRect();
-  
-  // Determine position based on position type and position
-  const isTop = item.type === POSITION_TYPE.SECTION_START || item.position === 'before';
-  const isSection = item.type !== POSITION_TYPE.ITEM;
-  
-  // Create styles for the indicator - use exact pixel positioning
-  const lineStyle = {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: '3px',
-    backgroundColor: isSection ? '#673ab7' : '#4d90fe', 
-    boxShadow: isSection ? '0 0 8px #673ab7' : '0 0 8px #4d90fe',
-    zIndex: 1000,
-    top: isTop ? 0 : '100%',
-    transform: 'translateY(-50%)'
-  };
-  
-  // Create styles for the label - ensure it doesn't overlap with the item
-  const labelStyle = {
-    position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    top: isTop ? '-20px' : 'calc(100% + 5px)',
-    backgroundColor: isSection ? '#673ab7' : '#4d90fe',
-    color: 'white',
-    padding: '2px 8px',
-    borderRadius: '12px',
-    fontSize: '11px',
-    fontWeight: 'bold',
-    whiteSpace: 'nowrap',
-    zIndex: 1001,
-    pointerEvents: 'none'
-  };
-  
-  // Get appropriate description
-  let description = '';
-  if (item.type === POSITION_TYPE.SECTION_START) {
-    description = `Start of ${item.sectionName || 'section'}`;
-  } else if (item.type === POSITION_TYPE.SECTION_END) {
-    description = `End of ${item.sectionName || 'section'}`;
-  } else if (item.type === POSITION_TYPE.SECTION_BETWEEN) {
-    description = 'Between sections';
-  } else {
-    description = item.position === 'before' ? 'Before item' : 'After item';
-  }
-  
-  // Create a wrapper that matches the exact dimensions and position of the target element
-  return (
-    <div 
-      className="drop-indicator-wrapper" 
-      style={{ 
-        position: 'absolute', 
-        top: 0, 
-        left: 0, 
-        right: 0, 
-        bottom: 0, 
-        pointerEvents: 'none',
-        outline: DEBUG_OUTLINES ? '1px dashed red' : 'none',
-        outlineOffset: DEBUG_OUTLINES ? '-1px' : '0'
-      }}
-    >
-      <div className="drop-indicator" style={lineStyle} />
-      <div className="drop-indicator-label" style={labelStyle}>
-        {description}
-        {DEBUG_MODE && (
-          <span style={{ display: 'block', fontSize: '9px' }}>
-            {item.type}.{item.position} (idx: {item.index})
-          </span>
-        )}
-      </div>
-    </div>
-  );
+  return null;
 };
 
 /**
  * Section Header Component
+ * The section header itself is not a drop zone, but has a drop zone below it
  */
-const SectionHeader = React.forwardRef(({ section, onDragOver }, ref) => {
+const SectionHeader = React.forwardRef(({ section, onDragOver, onDrop }, ref) => {
   return (
-    <div 
-      ref={ref}
-      className="section-header"
-      style={{
-        padding: '8px 12px',
-        backgroundColor: '#e8eaf6',
-        borderRadius: '4px',
-        marginBottom: '12px',
-        fontWeight: 'bold',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        display: 'flex',
-        alignItems: 'center',
-        borderLeft: '4px solid #3f51b5',
-        position: 'relative' // Important for drop indicator positioning
-      }}
-      onDragOver={onDragOver}
-    >
-      <span style={{ marginRight: '8px', color: '#3f51b5' }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"></path>
-        </svg>
-      </span>
-      {section.sectionName}
+    <div className="section-header-container" style={{ position: 'relative' }}>
+      {/* The actual section header - not a drop zone */}
+      <div 
+        className="section-header"
+        style={{
+          padding: '8px 12px',
+          backgroundColor: '#e8eaf6',
+          borderRadius: '4px',
+          marginBottom: '8px',
+          fontWeight: 'bold',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          borderLeft: '4px solid #3f51b5',
+        }}
+      >
+        <span style={{ marginRight: '8px', color: '#3f51b5' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 5h16v2H4zm0 6h16v2H4zm0 6h16v2H4z"></path>
+          </svg>
+        </span>
+        {section.sectionName}
+      </div>
+      
+      {/* The drop zone below the section header */}
+      <div 
+        ref={ref}
+        className="section-drop-zone reorder-item-container"
+        style={{
+          height: '38px', /* Standard row height */
+          marginBottom: '4px',
+          position: 'relative',
+          backgroundColor: 'transparent',
+          border: '1px dashed rgba(0,0,0,0.1)',
+          borderRadius: '4px',
+        }}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
+      />
     </div>
   );
 });
@@ -168,6 +107,68 @@ const ReorderMode = ({
   const [draggingItem, setDraggingItem] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [dropPosition, setDropPosition] = useState(null); // Track drop position for gap effect
+  
+  // Add effect to clean up any visual states when component updates or unmounts
+  useEffect(() => {
+    // Clean up any lingering drag state on unmount
+    return () => {
+      // Use a comprehensive cleanup approach when unmounting
+      try {
+        // Remove all visual indicator classes
+        document.querySelectorAll('.dragging, .drop-target, .gap-before, .gap-after, .not-draggable').forEach(el => {
+          if (el) {
+            el.classList.remove('dragging', 'drop-target', 'gap-before', 'gap-after', 'not-draggable');
+          }
+        });
+        
+        // Remove any tooltips that might have been created
+        document.querySelectorAll('.cannot-drag-tooltip').forEach(el => {
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el);
+          }
+        });
+        
+        // Remove any gap overlay elements
+        document.querySelectorAll('.gap-overlay-before, .gap-overlay-after').forEach(el => {
+          if (el && el.parentNode) {
+            el.parentNode.removeChild(el);
+          }
+        });
+      } catch (err) {
+        console.error('Error in cleanup effect:', err);
+      }
+      
+      // Reset state variables
+      setDraggingItem(null);
+      setDropTarget(null);
+      setDropPosition(null);
+    };
+  }, []);
+  
+  // Runs a comprehensive cleanup to remove all DropIndicator references
+  useEffect(() => {
+    // Run only once on initial render to remove all DropIndicator references from the DOM
+    const removeDropIndicators = () => {
+      try {
+        // Find and remove all rendered DropIndicator components
+        const dropIndicatorElements = document.querySelectorAll('[data-drop-indicator]');
+        dropIndicatorElements.forEach(element => {
+          if (element && element.parentNode) {
+            element.parentNode.removeChild(element);
+          }
+        });
+      } catch (err) {
+        console.error('Error removing drop indicators:', err);
+      }
+    };
+
+    // Remove any drop indicators that might have been rendered
+    removeDropIndicators();
+    
+    // Ensure we don't have any visual artifacts
+    resetVisualState();
+  }, []);
   
   // Extract sections from rows data
   const rowSections = useMemo(() => {
@@ -399,11 +400,21 @@ const ReorderMode = ({
       
       // Show visual feedback for why it can't be dragged
       if (node) {
-        node.classList.add('not-draggable');
-        setTimeout(() => node.classList.remove('not-draggable'), 800);
+        try {
+          node.classList.add('not-draggable');
+          setTimeout(() => {
+            try {
+              if (node) node.classList.remove('not-draggable');
+            } catch (err) {
+              console.error('Error removing not-draggable class:', err);
+            }
+          }, 800);
+        } catch (err) {
+          console.error('Error adding not-draggable class:', err);
+        }
       }
       
-      // Show a tooltip or notification that this item can't be moved (using CSS animation)
+      // Show a tooltip or notification that this item can't be moved
       const tooltip = document.createElement('div');
       tooltip.className = 'cannot-drag-tooltip';
       tooltip.textContent = 'Cannot move: This is the only item in this section';
@@ -430,15 +441,42 @@ const ReorderMode = ({
       return;
     }
     
-    // Add dragging class
-    if (node) {
-      node.classList.add('dragging');
-    }
-    
-    setDraggingItem({
-      ...item,
-      node // Store the DOM node
+    // Clean up any lingering gap or drop-target classes first
+    document.querySelectorAll('.drop-target, .gap-before, .gap-after').forEach(el => {
+      if (el) {
+        el.classList.remove('drop-target', 'gap-before', 'gap-after');
+      }
     });
+    
+    // Add dragging class and hide the original item
+    if (node) {
+      try {
+        // Add dragging class to make the original item nearly invisible
+        node.classList.add('dragging');
+        
+        // Create a reference to the node that won't become stale
+        const nodeRef = node;
+        
+        setDraggingItem({
+          ...item,
+          node: nodeRef // Store the DOM node with a stable reference
+        });
+      } catch (err) {
+        console.error('Error adding dragging class:', err);
+        
+        // Still set the dragging item even if adding the class fails
+        setDraggingItem({
+          ...item,
+          node: null 
+        });
+      }
+    } else {
+      // Handle case where node is null
+      setDraggingItem({
+        ...item,
+        node: null
+      });
+    }
     
     // Required for Firefox
     e.dataTransfer.setData('text/plain', '');
@@ -447,30 +485,81 @@ const ReorderMode = ({
     if (externalDragStart) {
       externalDragStart(e, item.index);
     }
-  };
-  
-  // Handle drag over
+  };    // Handle drag over
   const handleDragOver = (e, virtualIndex, node) => {
-    e.preventDefault();
+    e.preventDefault(); // Critical - this allows the drop
     e.stopPropagation();
     
     if (!draggingItem || !node) return;
     
+    // Skip if trying to drag over the exact same virtual item (prevents self-drop)
+    if (draggingItem.virtualIndex === virtualIndex) {
+      return;
+    }
+    
+    // Check if this is a gap overlay or section drop zone element
+    const isGapOverlay = e.target.classList.contains('gap-overlay-before') || 
+                         e.target.classList.contains('gap-overlay-after');
+    const isSectionDropZone = e.target.classList.contains('section-drop-zone');
+    
+    // If this is a gap overlay, we get its parent node and we know the position
+    let isInOverlay = false;
+    let overlayPosition = null;
+    
+    if (isGapOverlay) {
+      if (e.target.classList.contains('gap-overlay-before')) {
+        overlayPosition = 'before';
+        isInOverlay = true;
+      } else if (e.target.classList.contains('gap-overlay-after')) {
+        overlayPosition = 'after';
+        isInOverlay = true;
+      }
+    } else if (isSectionDropZone) {
+      // Section drop zones are always 'before' the first item
+      overlayPosition = 'before';
+      isInOverlay = true;
+    }
+    
     // Find the item in the reorder array
-    const item = reorderArray.find(item => item.virtualIndex === virtualIndex);
+    const item = reorderArray.find(i => i.virtualIndex === virtualIndex);
     if (!item) return;
     
-    // Get mouse position relative to the element to determine if we're in the top or bottom half
-    const rect = node.getBoundingClientRect();
-    const relativeY = e.clientY - rect.top;
-    const isTopHalf = relativeY < rect.height / 2;
+    // Check if we're over the original position
+    const isOriginalPosition = (item.type === POSITION_TYPE.ITEM && item.index === draggingItem.index) ||
+        ((item.type === POSITION_TYPE.SECTION_START || item.type === POSITION_TYPE.SECTION_END) && 
+         item.sectionId === draggingItem.sectionId &&
+         ((item.type === POSITION_TYPE.SECTION_START && item.index === draggingItem.index) ||
+          (item.type === POSITION_TYPE.SECTION_END && item.index - 1 === draggingItem.index)));
     
-    // For items, determine if we should show the indicator before or after the item
-    // For section indicators, we keep the default position
-    let position = item.position;
-    if (item.type === POSITION_TYPE.ITEM) {
-      position = isTopHalf ? 'before' : 'after';
+    // Determine position - use overlay position if in gap overlay or section drop zone
+    let position;
+    if (isInOverlay) {
+      position = overlayPosition;
+    } else if (e.target.classList.contains('section-drop-zone')) {
+      // Section drop zones are always 'before' position
+      position = 'before';
+    } else {
+      // Get mouse position relative to the element to determine if we're in the top or bottom half
+      const rect = node.getBoundingClientRect();
+      const relativeY = e.clientY - rect.top;
+      const isTopHalf = relativeY < rect.height / 2;
+      
+      // For items, determine if we should show the gap before or after the item
+      // For section indicators, we keep the default position
+      position = item.position;
+      if (item.type === POSITION_TYPE.ITEM) {
+        position = isTopHalf ? 'before' : 'after';
+      }
     }
+    
+    // Check if the drop position has changed
+    const currentNodeId = node.getAttribute('id') || node.getAttribute('data-id') || `item-${item.virtualIndex}`;
+    if (dropPosition && dropPosition.nodeId === currentNodeId && dropPosition.position === position) {
+      // Position hasn't changed, no need to update classes
+      return;
+    }
+    
+    console.log(`Setting drop target: item=${item.type}, index=${item.index}, position=${position}, inOverlay=${isInOverlay}, originalPosition=${isOriginalPosition}`);
     
     // Update drop target with node reference for precise positioning and position information
     setDropTarget({
@@ -479,8 +568,99 @@ const ReorderMode = ({
       node
     });
     
-    // Add visual drop target class
-    node.classList.add('drop-target');
+    // Update drop position for gap effect
+    setDropPosition({
+      nodeId: currentNodeId,
+      position,
+      virtualIndex: item.virtualIndex,
+      index: item.index, // Make sure we store the actual index value
+      inGapOverlay: isInOverlay
+    });
+    
+    try {
+      // Remove any existing gap classes and overlays first
+      document.querySelectorAll('.gap-before, .gap-after, .drop-target, .gap-overlay-before, .gap-overlay-after').forEach(el => {
+        if (el) {
+          el.classList.remove('gap-before', 'gap-after', 'drop-target');
+          // Remove any existing overlay elements
+          if (el.classList.contains('gap-overlay-before') || el.classList.contains('gap-overlay-after')) {
+            el.parentNode.removeChild(el);
+          }
+        }
+      });
+      
+      // Apply appropriate classes for gap behavior - but skip if over original position
+      if (node && !isOriginalPosition) {
+        // Special handling for section headers and section start positions
+        const isSectionStart = item.type === POSITION_TYPE.SECTION_START;
+        
+        // Use a consistent gap for all valid positions
+        if (position === 'before') {
+          node.classList.add('gap-before');
+          
+          // Create a gap overlay for better drop targeting
+          const gapOverlay = document.createElement('div');
+          gapOverlay.className = 'gap-overlay-before';
+          gapOverlay.setAttribute('data-virtual-index', virtualIndex);
+          
+          // For section starts, make sure the overlay is full width and height
+          if (isSectionStart) {
+            gapOverlay.style.width = '100%';
+            gapOverlay.style.height = '38px'; // Consistent row height
+          }
+          
+          // Add the same drag event handlers to the overlay
+          gapOverlay.addEventListener('dragover', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+          });
+          
+          gapOverlay.addEventListener('drop', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            handleDrop(evt);
+          });
+          
+          node.appendChild(gapOverlay);
+        } else if (position === 'after') {
+          node.classList.add('gap-after');
+          
+          // Create a gap overlay for better drop targeting
+          const gapOverlay = document.createElement('div');
+          gapOverlay.className = 'gap-overlay-after';
+          gapOverlay.setAttribute('data-virtual-index', virtualIndex);
+          
+          // For section ends, make sure the overlay is full width and height
+          if (item.type === POSITION_TYPE.SECTION_END) {
+            gapOverlay.style.width = '100%';
+            gapOverlay.style.height = '38px'; // Consistent row height
+          }
+          
+          // Add the same drag event handlers to the overlay
+          gapOverlay.addEventListener('dragover', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+          });
+          
+          gapOverlay.addEventListener('drop', (evt) => {
+            evt.preventDefault();
+            evt.stopPropagation();
+            handleDrop(evt);
+          });
+          
+          node.appendChild(gapOverlay);
+        }
+        
+        // Make sure we mark this as a drop target to track it
+        node.classList.add('drop-target');
+      } else if (isOriginalPosition && node) {
+        // Even though we don't add a gap for the original position,
+        // we still need to mark it as a drop target so the drop handler works
+        node.classList.add('drop-target');
+      }
+    } catch (err) {
+      console.error('Error updating classes:', err);
+    }
     
     // Call external handler if provided
     if (externalDragMove) {
@@ -493,9 +673,37 @@ const ReorderMode = ({
     e.preventDefault();
     e.stopPropagation();
     
-    // Remove drop-target class
+    // We need to check if we're actually leaving the element and not just entering a child element
+    // This uses a small timeout to ensure we're really leaving
+    const checkIfReallyLeft = (target, callback) => {
+      setTimeout(() => {
+        try {
+          const elementAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+          if (!target.contains(elementAtPoint)) {
+            callback(); // Only remove classes if truly leaving the element
+          }
+        } catch (err) {
+          console.error('Error in drag leave check:', err);
+        }
+      }, 10); // Small delay for accuracy
+    };
+    
+    // Check if we're really leaving the element
     if (e.currentTarget) {
-      e.currentTarget.classList.remove('drop-target');
+      checkIfReallyLeft(e.currentTarget, () => {
+        try {
+          // Only remove classes from the current target (not all elements)
+          // This ensures we don't remove the gap from the new target
+          if (e.currentTarget) {
+            e.currentTarget.classList.remove('drop-target', 'gap-before', 'gap-after');
+          }
+          
+          // We keep the dropTarget and dropPosition state so that
+          // when the drop happens, we still know where it was supposed to go
+        } catch (err) {
+          console.error('Error removing classes on drag leave:', err);
+        }
+      });
     }
   };
   
@@ -504,21 +712,49 @@ const ReorderMode = ({
     e.preventDefault();
     e.stopPropagation();
     
-    if (!draggingItem || !dropTarget) return;
+    // Check if the drop occurred on a gap overlay
+    const isGapOverlay = e.target.classList.contains('gap-overlay-before') || 
+                         e.target.classList.contains('gap-overlay-after');
     
-    // Remove classes
-    if (e.currentTarget) {
-      e.currentTarget.classList.remove('drop-target');
+    // Use the same drop target logic for gap overlays
+    if (isGapOverlay) {
+      // We're already handling this with the correct drop target from drag over
+      console.log('Drop occurred in a gap overlay:', e.target.className);
     }
     
-    // Skip if dropping on self
-    if (draggingItem.virtualIndex === dropTarget.virtualIndex) {
+    // Check if we're dropping at the original position
+    const isOriginalPosition = draggingItem?.index === dropTarget?.index;
+    
+    console.log('Handling drop event', { 
+      draggingItem, 
+      dropTarget,
+      draggingItemIndex: draggingItem?.index,
+      dropTargetIndex: dropTarget?.index,
+      dropTargetPosition: dropTarget?.position,
+      inGapOverlay: isGapOverlay,
+      isOriginalPosition
+    });
+    
+    if (!draggingItem || !dropTarget) {
+      console.error('Drop failed: Missing dragging item or drop target');
       resetDragState();
       return;
     }
     
-    // Check if source item is the only one in its section (additional safety check)
+    // Reset all visual indicators immediately
+    resetVisualState();
+    
+    // Skip if dropping on self
+    if (draggingItem.virtualIndex === dropTarget.virtualIndex) {
+      console.log('Dropping on self, ignoring');
+      resetDragState();
+      return;
+    }
+    
+    // Get the source and target indices from the dragging items
     const sourceIndex = draggingItem.index;
+    
+    // Check if source item is the only one in its section
     let sourceSectionId;
     if (reorderAxis === 'rows') {
       sourceSectionId = rows[sourceIndex]?.[0]?.section?.sectionId;
@@ -534,60 +770,93 @@ const ReorderMode = ({
     // Show brief loading state
     setIsLoading(true);
     
-    // Determine source and target indices
-    const sourceItemIndex = draggingItem.index;
+    // Set up target information
     let targetIndex = dropTarget.index;
     const targetSectionId = dropTarget.sectionId;
+    
+    console.log('Drop details:', {
+      sourceIndex, 
+      targetIndex, 
+      targetSectionId,
+      dropTargetType: dropTarget.type,
+      dropTargetPosition: dropTarget.position
+    });
     
     // Adjust target index if dropping after an item
     if (dropTarget.type === POSITION_TYPE.ITEM && dropTarget.position === 'after') {
       targetIndex += 1;
+      console.log(`Adjusted target index to ${targetIndex} (after item)`);
     }
     
     if (reorderAxis === 'rows') {
       // Handle row reordering
+      console.log('Reordering rows', { sourceIndex, targetIndex, rows });
+      
+      // Create a simple shallow copy of the rows array to start with
       const newRows = [...rows];
       
-      // Deep copy the source row
-      const sourceRow = JSON.parse(JSON.stringify(newRows[sourceItemIndex]));
+      // Get a copy of the source row
+      const sourceRow = [...newRows[sourceIndex]];
       
-      // Remove the source row
-      newRows.splice(sourceItemIndex, 1);
+      // Remove the source row first
+      newRows.splice(sourceIndex, 1);
       
       // Adjust target index if needed
       let adjustedTargetIndex = targetIndex;
-      if (targetIndex > sourceItemIndex) {
+      if (targetIndex > sourceIndex) {
         adjustedTargetIndex--;
       }
+      
+      console.log('Adjusted target index', { 
+        originalTarget: targetIndex,
+        adjustedTarget: adjustedTargetIndex,
+        sourceIndex
+      });
       
       // Insert the row at the target position
       newRows.splice(adjustedTargetIndex, 0, sourceRow);
       
       // Update section if needed
-      if (targetSectionId && targetSectionId !== sourceRow[0].section?.sectionId) {
+      if (targetSectionId && targetSectionId !== sourceRow[0]?.section?.sectionId) {
         const targetSection = rowSections.find(s => s.sectionId === targetSectionId);
         if (targetSection) {
-          sourceRow[0].section = { ...targetSection };
+          sourceRow[0] = {
+            ...sourceRow[0],
+            section: { ...targetSection }
+          };
         }
       }
       
-      // Update rows state
+      // Debug before update
+      console.log('UPDATING ROWS', {
+        oldRows: rows,
+        newRows: newRows,
+        sourceIndex,
+        targetIndex: adjustedTargetIndex
+      });
+      
+      // Call the parent component's setState function directly
       setRows(newRows);
+      
+      console.log('Rows should be updated now');
     } else {
       // Handle column reordering
+      console.log('Reordering columns', { sourceIndex, targetIndex, columns });
+      
+      // Create a simple shallow copy of the rows array
       const newRows = rows.map(row => [...row]);
       
       // Move the column in each row
       newRows.forEach((row, rowIndex) => {
-        // Deep copy the source cell
-        const sourceCell = JSON.parse(JSON.stringify(row[sourceItemIndex]));
+        // Get the source cell
+        const sourceCell = { ...row[sourceIndex] };
         
         // Remove source cell
-        row.splice(sourceItemIndex, 1);
+        row.splice(sourceIndex, 1);
         
         // Adjust target index
         let adjustedTargetIndex = targetIndex;
-        if (targetIndex > sourceItemIndex) {
+        if (targetIndex > sourceIndex) {
           adjustedTargetIndex--;
         }
         
@@ -598,7 +867,8 @@ const ReorderMode = ({
         if (rowIndex === 0 && targetSectionId && sourceCell.section?.sectionId !== targetSectionId) {
           const targetSection = colSections.find(s => s.sectionId === targetSectionId);
           if (targetSection) {
-            sourceCell.section = { ...targetSection };
+            // Update the section in the current position
+            row[adjustedTargetIndex].section = { ...targetSection };
             
             // Also update the section for this column in all other rows
             for (let i = 1; i < newRows.length; i++) {
@@ -610,36 +880,140 @@ const ReorderMode = ({
         }
       });
       
-      // Update rows state
+      // Debug before update
+      console.log('UPDATING COLUMNS', {
+        oldRows: rows,
+        newRows: newRows,
+        sourceIndex,
+        targetIndex
+      });
+      
+      // Call the parent component's setState function directly
       setRows(newRows);
+      
+      console.log('Columns should be updated now');
     }
     
-    // Clear loading state after a brief delay
+    // Immediately reset drag state to ensure UI is responsive
+    resetDragState();
+    
+    // Clear loading state with a small delay
     setTimeout(() => {
       setIsLoading(false);
-      resetDragState();
-    }, 300);
+      
+      // Log success message
+      console.log('%cDrag and drop operation completed', 'color: green; font-weight: bold;');
+    }, 100);
   };
   
-  // Reset drag state
-  const resetDragState = () => {
-    // Remove classes from any elements
-    document.querySelectorAll('.dragging, .drop-target').forEach(elem => {
-      elem.classList.remove('dragging', 'drop-target');
+  // Add effect to track changes in rows data
+  useEffect(() => {
+    // Log when rows data changes from the parent
+    if (rows && rows.length > 0) {
+      console.log('%cRows data updated from parent', 'background: green; color: white; padding: 2px 5px;', {
+        rowCount: rows.length,
+        firstRow: rows[0]
+      });
+    }
+  }, [rows]);
+  
+  // No need to redefine the Section Header Component since we've defined it at the top
+  // with proper handling for the drop event
+  
+  // Add effect to update our local dragging state when rows change
+  useEffect(() => {
+    // Reset drag state if we have a state change while dragging
+    if (draggingItem !== null) {
+      resetDragState();
+    }
+  }, [rows.length]);
+  
+  // Debug function to help track state updates
+  const debugRowUpdate = (newRows, message) => {
+    console.log(`%c${message}`, 'background: #3f51b5; color: white; padding: 2px 5px; border-radius: 3px;', {
+      rowCount: newRows.length,
+      firstRow: newRows[0],
+      lastRow: newRows[newRows.length - 1]
     });
+  };
+  
+  // Utility function to reset just the visual state (classes)
+  const resetVisualState = () => {
+    try {
+      // First ensure any dragging items are restored to visibility
+      const draggingElements = document.querySelectorAll('.dragging');
+      if (draggingElements.length > 0) {
+        draggingElements.forEach(elem => {
+          if (elem) {
+            elem.classList.remove('dragging');
+          }
+        });
+      }
+      
+      // Then remove all other visual indicator classes
+      document.querySelectorAll('.drop-target, .gap-before, .gap-after').forEach(elem => {
+        if (elem) {
+          elem.classList.remove('drop-target', 'gap-before', 'gap-after');
+        }
+      });
+      
+      // Remove active state from section drop zones
+      document.querySelectorAll('.section-drop-zone.drop-target').forEach(elem => {
+        if (elem) {
+          elem.classList.remove('drop-target');
+        }
+      });
+      
+      // Remove any gap overlay elements
+      document.querySelectorAll('.gap-overlay-before, .gap-overlay-after').forEach(elem => {
+        if (elem && elem.parentNode) {
+          elem.parentNode.removeChild(elem);
+        }
+      });
+    } catch (err) {
+      console.error('Error resetting visual state:', err);
+    }
+  };
+
+  // Reset full drag state (both visual and state variables)
+  const resetDragState = () => {
+    // Reset visual classes first
+    resetVisualState();
     
+    // Then reset state variables
     setDraggingItem(null);
     setDropTarget(null);
+    setDropPosition(null);
   };
   
   // Handle drag end
   const handleDragEnd = (e) => {
-    resetDragState();
+    // Don't reset the drag state here immediately
+    // since the drop event might be about to fire
     
-    // Call external handler if provided
-    if (externalDragEnd) {
-      externalDragEnd(e);
-    }
+    // Instead, use setTimeout to allow drop to process first if it's going to
+    setTimeout(() => {
+      // Only reset if it hasn't been reset by a drop event
+      if (draggingItem) {
+        console.log('Drag ended without drop, resetting state');
+        
+        // Make sure we restore any hidden items
+        if (draggingItem.node) {
+          try {
+            draggingItem.node.classList.remove('dragging');
+          } catch (err) {
+            console.error('Error removing dragging class:', err);
+          }
+        }
+        
+        resetDragState();
+      }
+      
+      // Call external handler if provided
+      if (externalDragEnd) {
+        externalDragEnd(e);
+      }
+    }, 50); // Small delay to ensure drop fires first if it's going to
   };
   
   // Render rows or columns based on reorderAxis
@@ -695,9 +1069,11 @@ const ReorderMode = ({
                     onDragOver={(e) => {
                       if (sectionStart) {
                         const node = sectionRefs.current[`section-${row[0].section.sectionId}`];
+                        // Use the same handler to ensure consistent gap behavior
                         handleDragOver(e, sectionStart.virtualIndex, node);
                       }
                     }}
+                    onDrop={handleDrop}
                   />
                 )}
                 
@@ -716,7 +1092,7 @@ const ReorderMode = ({
                       handleDragStart(e, virtualItem.virtualIndex, node);
                     }
                   }}
-                  className={cannotDrag ? "undraggable-item" : ""}
+                  className={`reorder-item-container ${cannotDrag ? "undraggable-item" : ""}`}
                   title={cannotDrag ? "Cannot move: This is the only item in this section" : "Drag to reorder"}
                   onDragOver={(e) => {
                     if (virtualItem) {
@@ -815,7 +1191,14 @@ const ReorderMode = ({
     } else {
       // Render columns (skip the first column as it's the row titles)
       return (
-        <div style={{ display: 'block', position: 'relative', padding: '0 0 20px 0' }}>
+        <div style={{ 
+          display: 'block', 
+          position: 'relative', 
+          padding: '0 0 20px 0',
+          width: '100%', /* Ensure container takes full width available */
+          maxWidth: '100%', /* Prevent expanding beyond parent */
+          boxSizing: 'border-box' /* Include padding in width calculation */
+        }}>
           {Array.from({ length: columns - 1 }).map((_, colIndex) => {
             // Add 1 to colIndex since we're skipping the first column
             const realColIndex = colIndex + 1;
@@ -870,14 +1253,15 @@ const ReorderMode = ({
                     onDragOver={(e) => {
                       if (sectionStart) {
                         const node = sectionRefs.current[`col-section-${rows[0][realColIndex].section.sectionId}`];
+                        // Use the same handler to ensure consistent gap behavior
                         handleDragOver(e, sectionStart.virtualIndex, node);
                       }
                     }}
+                    onDrop={handleDrop}
                   />
                 )}
                 
-                {/* Render the column */}
-                <div
+                {/* Render the column */}                  <div
                       ref={node => {
                         if (node) {
                           itemRefs.current[colKey] = node;
@@ -885,7 +1269,7 @@ const ReorderMode = ({
                         }
                       }}
                       draggable={!cannotDrag}
-                      className={cannotDrag ? "undraggable-item" : ""}
+                      className={`reorder-item-container ${cannotDrag ? "undraggable-item" : ""}`}
                       title={cannotDrag ? "Cannot move: This is the only column in this section" : "Drag to reorder"}
                       onDragStart={(e) => {
                         if (virtualItem) {
@@ -913,13 +1297,25 @@ const ReorderMode = ({
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     width: '100%',
+                    maxWidth: '100%', /* Prevent expanding beyond parent */
+                    boxSizing: 'border-box', /* Include padding in width calculation */
                     textAlign: 'left',
-                    position: 'relative' // Important for indicator positioning
+                    position: 'relative', /* Important for indicator positioning */
+                    overflow: 'hidden', /* Hide any text that might overflow */
+                    textOverflow: 'ellipsis' /* Show ellipsis for overflowing text */
                   }}
                 >
                   {/* Display only the column name, or a placeholder if empty */}
                   {rows[0][realColIndex].name ? (
-                    <span style={{ fontWeight: 'bold' }}>{rows[0][realColIndex].name}</span>
+                    <span style={{ 
+                      fontWeight: 'bold',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      maxWidth: 'calc(100% - 30px)' /* Leave space for lock icon if needed */
+                    }}>
+                      {rows[0][realColIndex].name}
+                    </span>
                   ) : (
                     <em>Column {colIndex + 1}</em>
                   )}
@@ -990,7 +1386,7 @@ const ReorderMode = ({
         backgroundColor: '#f8f8f8',
         borderRadius: '8px',
         maxHeight: '600px',
-        overflowY: 'auto',
+        overflow: 'auto', /* Change from overflowY to handle both directions */
         boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
         border: '1px solid #e0e0e0',
         position: 'relative'

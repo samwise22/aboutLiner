@@ -93,7 +93,7 @@ button {
 /* Top-level list items spacing */
 /* Top-level list items spacing */
 .outline-panel > ul > li {
-  margin-bottom: 1.2em;
+  margin-bottom: 0.0em;
 }
 
 /* Make list items a positioning context for the insertion line */
@@ -108,11 +108,11 @@ button {
 }
 
 .outline-panel ul ul {
-  margin-bottom: 1.2em;
+  margin-bottom: 0.0em;
 }
 
 .outline-panel li {
-  margin-bottom: 8px;
+  margin-bottom: 3px;
 }
 .outline-panel input {
   width: 100%;

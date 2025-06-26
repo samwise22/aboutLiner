@@ -1,0 +1,128 @@
+/**
+ * Enhanced Outline Mode Styles
+ * Based on the original App.js outline implementation
+ */
+
+.outline-mode {
+  padding: 10px;
+  background-color: #f9f9f9;
+  min-height: 400px;
+}
+
+.outline-section {
+  margin-bottom: 20px;
+}
+
+.section-heading {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #ddd;
+  color: #444;
+}
+
+.outline-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 6px;
+  position: relative;
+}
+
+.row-id {
+  font-size: 12px;
+  color: #888;
+  margin-right: 8px;
+  min-width: 40px;
+  font-family: monospace;
+}
+
+input.cell-name, 
+input.cell-value {
+  padding: 6px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input.cell-name:focus,
+input.cell-value:focus,
+textarea:focus {
+  outline: none;
+  border-color: #4d90fe;
+  box-shadow: 0 0 2px #4d90fe;
+}
+
+/* Pending delete states */
+li.pending-delete > div > input.cell-value {
+  background-color: #fee;
+  border-color: #f77;
+}
+
+li.pending-delete > div > input.cell-value:focus {
+  background-color: #fee;
+  border-color: #f77;
+  box-shadow: 0 0 4px #f77;
+}
+
+.sub-bullet__cell {
+  position: relative;
+}
+
+.sub-bullet__cell.pending-delete-col > textarea {
+  background-color: #fee;
+  border-color: #f77;
+}
+
+.sub-bullet__cell.pending-delete-col > textarea:focus {
+  background-color: #fee;
+  border-color: #f77;
+  box-shadow: 0 0 4px #f77;
+}
+
+/* Collapsed name styling */
+.sub-bullet__cell.collapsed-name input[type="text"] {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: transparent;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* Column color variables */
+:root {
+  --col-color-2: #e8f4f8;
+  --col-color-3: #e8f8ea;
+  --col-color-4: #f8f4e8;
+  --col-color-5: #f8e8f4;
+  --col-color-6: #f8eae8;
+  --col-color-7: #e8e8f8;
+}
+
+/* Better auto-sizing for textareas */
+textarea {
+  min-height: 1.5em;
+  overflow-y: hidden;
+  resize: none;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 6px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* Smooth transition for collapsed pill inputs */
+.sub-bullet__cell input[type="text"] {
+  transition: all 0.2s ease;
+}
+
+/* Style cells to match table better */
+.cell-name, .cell-value {
+  background-color: white;
+}
+
+/* Hover states */
+.outline-row:hover {
+  background-color: rgba(235, 245, 255, 0.3);
+}
