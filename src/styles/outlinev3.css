@@ -55,7 +55,7 @@
 .outline-mode-v3 .cell-row {
   display: flex;
   align-items: center;
-  padding: 2px 0;
+  padding: 0; /* Remove vertical padding to ensure perfect centering */
   min-height: 28px; /* Fixed height for consistent alignment */
   height: 28px; /* Fixed height to ensure consistent spacing */
   box-sizing: border-box;
@@ -70,7 +70,6 @@
   transition: all 0.25s ease;
   padding-left: 0; /* Remove default padding - bullets positioned absolutely instead */
   height: 28px; /* Ensure consistent height */
-  line-height: 28px; /* Match line height to height */
 }
 
 .outline-mode-v3 .row-input-group {
@@ -81,7 +80,7 @@
 
 /* Ensure value input is properly positioned in relation to name-badge for row items */
 .outline-mode-v3 .row-item > .cell-row .value-input {
-  margin-left: 24px; /* Provide space for the circular badge */
+  margin-left: 30px; /* Increased space for the circular badge to prevent overlap */
   position: relative;
   z-index: 4; /* Above background elements but below focused inputs */
   transition: margin-left 0.25s ease; /* Smooth transition for offset changes */
@@ -173,7 +172,7 @@
 }
 
 .outline-mode-v3 .sub-bullet-item .value-input {
-  margin-left: 20px; /* Space for the circular badge */
+  margin-left: 35px; /* Increased space for the circular badge to prevent overlap */
   position: relative;
   z-index: 4; /* Above background elements but below focused inputs */
   padding-left: 1px; /* Minimal padding for more compact look */
@@ -308,13 +307,13 @@
   z-index: 4;
   margin-left: 0;
   transition: margin-left 0.25s ease;
-  align-self: center; /* Ensure vertical centering with flexbox parent */
+  align-self: center !important; /* Force vertical centering with flexbox parent */
   height: 22px; /* Match the height of the expanded pill */
   line-height: 16px; /* Consistent line height with label input */
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
   box-sizing: border-box;
+  vertical-align: middle;
+  margin-top: 0 !important; /* Ensure no browser default margins */
+  margin-bottom: 0 !important; /* Ensure no browser default margins */
 }
 
 /* Offset value input when label is visible (overridden by critical fixes at the end) */
@@ -600,9 +599,9 @@
 .outline-mode-v3 .name-badge {
   font-size: 12px;
   padding: 0;
-  width: 10px;
-  height: 10px;
-  margin-right: 4px;
+  width: 16px;
+  height: 16px;
+  margin-right: 12px;
   border-radius: 50%;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -623,6 +622,7 @@
 /* Special positioning for sub-bullets to ensure it's the only visible element when not focused */
 .outline-mode-v3 .sub-bullet-item .name-badge {
   left: 10px; /* Moved closer to the left edge for more compact layout */
+  top: 50%; /* Use percentage for precise centering */
   z-index: 10; /* Ensure it appears above other elements */
   transform: translateY(-50%); /* Ensure vertical centering */
   position: absolute; /* Make sure it's absolutely positioned */
@@ -634,7 +634,7 @@
   background: rgba(42, 136, 136, 0.8); /* Darker green to be more prominent */
   border: 1px solid rgba(42, 136, 136, 0.5);
   left: 14px !important; /* Position in place of bullet - use !important */
-  top: 50% !important; /* Vertically center - use !important */
+  top: 50% !important; /* Use percentage for precise centering */
   transform: translateY(-50%) !important; /* Vertical centering - use !important */
   cursor: pointer;
   /* Ensure this is the only visible element when not focused */
@@ -646,8 +646,8 @@
   justify-content: center;
   position: absolute; /* Ensure absolute positioning */
   margin-left: 0 !important; /* No additional margins */
-  width: 10px !important; /* Fixed width for perfect circle when collapsed */
-  height: 10px !important; /* Fixed height for perfect circle when collapsed */
+  width: 16px !important; /* Match expanded pill height for visual consistency */
+  height: 16px !important; /* Match expanded pill height for visual consistency */
   padding: 0 !important; /* Remove padding to ensure perfect circle */
   box-sizing: border-box !important; /* Ensure padding is included in height */
   border-radius: 50% !important; /* Perfect circle when collapsed */
@@ -660,12 +660,23 @@
   background: rgba(74, 134, 232, 0.8); /* Darker blue to be more visible */
   border: 1px solid rgba(74, 134, 232, 0.5);
   left: 14px; /* Position in place of bullet */
-  top: 50%;
+  top: 50%; /* Use percentage for precise centering */
   transform: translateY(-50%);
   cursor: pointer;
   z-index: 10;
+  opacity: 1; /* Always visible like level 1 bullets */
   transition: width 0.25s ease, max-width 0.25s ease, padding 0.25s ease, border-radius 0.25s ease, text-indent 0.25s ease;
   transform-origin: left center;
+  width: 16px; /* Match expanded pill height for visual consistency */
+  height: 16px; /* Match expanded pill height for visual consistency */
+  padding: 0; /* Remove padding to ensure perfect circle */
+  box-sizing: border-box; /* Ensure padding is included in height */
+  border-radius: 50%; /* Perfect circle when collapsed */
+  text-indent: -9999px; /* Hide text when collapsed */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
 }
 
 /* Show name badge when name has content and field is not focused */
@@ -752,14 +763,13 @@
 
 /* Shift value input when name badge is visible */
 .outline-mode-v3 .has-name .value-input {
-  margin-left: 30px; /* Just enough space for the circular bullet */
+  margin-left: 50px; /* Increased margin to ensure no overlap with circular badge */
 }
 
-/* Ensure value input shifts right when name field is focused - handled by critical fixes */
-/* .outline-mode-v3 .name-input-focused.has-name .value-input rule removed to avoid conflicts */
-
-/* Specific sub-bullet margin - handled by critical fixes at the end of the file */
-/* .outline-mode-v3 .sub-bullet-item .name-input-focused.has-name .value-input rule removed to avoid conflicts */
+/* Specific margin for sub-bullet items when name badge is visible */
+.outline-mode-v3 .sub-bullet-item.has-name .value-input {
+  margin-left: 45px; /* Increased margin for sub-bullets to prevent overlap */
+}
 
 /* Add frequency badge styling */
 .outline-mode-v3 .frequency-badge {
