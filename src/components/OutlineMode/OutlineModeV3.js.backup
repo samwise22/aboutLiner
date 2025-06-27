@@ -1,0 +1,193 @@
+import React, { useState } from 'react';
+
+const OutlineModeV3 = ({
+  sectionData,
+  onDataChange,
+  includeIds = true,
+  includeHeaders = true,
+  includeSections = true,
+  onNavigate
+}) => {
+  const [debugInfo, setDebugInfo] = useState('Component initialized');
+
+  // Internal navigation handler
+  const handleNavigation = (direction, fieldType) => {
+    console.log('Navigation called:', direction, fieldType);
+    
+    // Find all inputs of the same type
+    const selector = fieldType === 'name' ? '.label-input' : '.value-input';
+    const inputs = document.querySelectorAll(`.outline-mode-v3 ${selector}`);
+    const inputArray = Array.from(inputs);
+    const activeElement = document.activeElement;
+    
+    console.log('Found inputs:', inputArray.length);
+    
+    const currentIndex = inputArray.indexOf(activeElement);
+    console.log('Current index:', currentIndex);
+    
+    if (currentIndex === -1) {
+      console.log('Active element not found');
+      return;
+    }
+    
+    let nextIndex;
+    if (direction === 'up') {
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : inputArray.length - 1;
+    } else {
+      nextIndex = currentIndex < inputArray.length - 1 ? currentIndex + 1 : 0;
+    }
+    
+    console.log('Moving to index:', nextIndex);
+    
+    if (inputArray[nextIndex]) {
+      inputArray[nextIndex].focus();
+      console.log('Focus moved successfully');
+    }
+  };
+
+  // Simple update function
+  const updateCell = (sectionIdx, rowIdx, colIdx, field, value) => {
+    const updatedSections = [...sectionData.rowSections];
+    const section = updatedSections[sectionIdx];
+    if (!section) return;
+    
+    const row = section.rows[rowIdx];
+    if (!row) return;
+    
+    if (colIdx === 0) {
+      // Update row name/value
+      const updatedRow = { ...row, [field]: value };
+      updatedSections[sectionIdx] = {
+        ...section,
+        rows: [
+          ...section.rows.slice(0, rowIdx),
+          updatedRow,
+          ...section.rows.slice(rowIdx + 1)
+        ]
+      };
+    } else {
+      // Update cell name/value
+      if (!row.cells || colIdx - 1 >= row.cells.length) return;
+      
+      const updatedCells = [...row.cells];
+      updatedCells[colIdx - 1] = {
+        ...updatedCells[colIdx - 1],
+        [field]: value
+      };
+      
+      const updatedRow = { ...row, cells: updatedCells };
+      updatedSections[sectionIdx] = {
+        ...section,
+        rows: [
+          ...section.rows.slice(0, rowIdx),
+          updatedRow,
+          ...section.rows.slice(rowIdx + 1)
+        ]
+      };
+    }
+    
+    onDataChange({
+      ...sectionData,
+      rowSections: updatedSections
+    });
+  };
+
+  return (
+    <div className="outline-mode-v3">
+      <div style={{background: 'yellow', padding: '10px', marginBottom: '10px', border: '2px solid red'}}>
+        <strong>DEBUG:</strong> {debugInfo}
+      </div>
+      
+      {sectionData.rowSections && sectionData.rowSections.map((section, sectionIdx) => (
+        <div key={section.sectionId || sectionIdx} className="row-section">
+          <h3>Section: {section.sectionName || 'Unnamed Section'}</h3>
+          
+          {section.rows && section.rows.map((row, rowIdx) => (
+            <div key={row.id || rowIdx} className="row-item">
+              <div style={{display: 'flex', alignItems: 'center', marginBottom: '5px'}}>
+                <span>• </span>
+                <input 
+                  type="text" 
+                  className="label-input"
+                  value={row.name || ''} 
+                  onChange={(e) => {
+                    updateCell(sectionIdx, rowIdx, 0, 'name', e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'name');
+                    }
+                  }}
+                  placeholder="Row name"
+                  style={{marginRight: '10px', minWidth: '120px'}}
+                />
+                <span>: </span>
+                <input 
+                  type="text" 
+                  className="value-input"
+                  value={row.value || ''} 
+                  onChange={(e) => {
+                    updateCell(sectionIdx, rowIdx, 0, 'value', e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value');
+                    }
+                  }}
+                  placeholder="Row value"
+                  style={{minWidth: '150px'}}
+                />
+              </div>
+              
+              {row.cells && row.cells.length > 0 && (
+                <div style={{marginLeft: '20px'}}>
+                  {row.cells.map((cell, cellIdx) => (
+                    <div key={cellIdx} style={{marginBottom: '5px'}}>
+                      <span>- Column {cellIdx + 1}: </span>
+                      <input 
+                        type="text" 
+                        className="label-input"
+                        value={cell.name || ''} 
+                        onChange={(e) => {
+                          updateCell(sectionIdx, rowIdx, cellIdx + 1, 'name', e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'name');
+                          }
+                        }}
+                        placeholder="Column name"
+                        style={{marginLeft: '5px', marginRight: '10px', minWidth: '100px'}}
+                      />
+                      <input 
+                        type="text" 
+                        className="value-input"
+                        value={cell.value || ''} 
+                        onChange={(e) => {
+                          updateCell(sectionIdx, rowIdx, cellIdx + 1, 'value', e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value');
+                          }
+                        }}
+                        placeholder="Cell value"
+                        style={{minWidth: '150px'}}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export default OutlineModeV3;

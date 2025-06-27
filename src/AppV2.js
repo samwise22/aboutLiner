@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import logo from './aboutliner rectangle.png';
 import MarkdownIt from 'markdown-it';
 import DOMPurify from 'dompurify';
