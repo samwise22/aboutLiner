@@ -14,8 +14,10 @@ const OutlineModeV3 = ({
   // Essential state only
   const [focusedCell, setFocusedCell] = useState({ sectionIdx: null, rowIdx: null, colIdx: null });
   const [focusedNameField, setFocusedNameField] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null); // { type: 'row'|'col', sectionIdx, rowIdx, colIdx, timestamp }
   // Input refs for focus management
   const inputRefs = useRef({});
+  const deleteTimeoutRef = useRef(null);
 
   // Keyboard navigation handler (up/down arrows for name/value fields)
   const handleNavigation = (direction, fieldType, opts = {}) => {
@@ -309,6 +311,15 @@ const OutlineModeV3 = ({
     }, 0);
   };
 
+  // Helper: clear pending delete
+  const clearPendingDelete = () => {
+    setPendingDelete(null);
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = null;
+    }
+  };
+
   return (
     <div className="outline-mode-v3">
       {sectionData.rowSections.map((section, sectionIdx) => (
@@ -333,209 +344,228 @@ const OutlineModeV3 = ({
             />
           </div>
           <ul>
-            {section.rows.map((row, rowIdx) => (
-              <li key={row.id} className="row-item">
-                <div className="cell-row">
-                  <div className="bullet">•</div>
-                  <div className={`row-label ${getRowTitleHeader() ? 'has-name' : ''} ${focusedNameField === `${sectionIdx}-${rowIdx}-0` ? 'name-input-focused' : ''}`}> 
-                    {includeHeaders && (
+            {section.rows.map((row, rowIdx) => {
+              return (
+                <li key={row.id} className="row-item">
+                  <div className="cell-row">
+                    <div className="bullet">•</div>
+                    <div className={`row-label ${getRowTitleHeader() ? 'has-name' : ''} ${focusedNameField === `${sectionIdx}-${rowIdx}-0` ? 'name-input-focused' : ''}`}> 
+                      {includeHeaders && (
+                        <input
+                          className="label-input"
+                          ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-0-name`] = el)}
+                          type="text"
+                          placeholder="Row Title"
+                          value={getRowTitleHeader()}
+                          onChange={(e) => updateRowTitleHeader(e.target.value)}
+                          onFocus={() => {
+                            setFocusedCell({ sectionIdx, rowIdx, colIdx: 0 });
+                            setFocusedNameField(`${sectionIdx}-${rowIdx}-0`);
+                          }}
+                          onBlur={() => setFocusedNameField(null)}
+                          onKeyDown={e => {
+                            const caretAtEnd = e.target.selectionStart === e.target.value.length;
+                            if ((e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                              e.preventDefault();
+                              handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'name', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
+                            } else if (
+                              e.key === 'ArrowRight' && (caretAtEnd || e.metaKey || e.ctrlKey)
+                            ) {
+                              e.preventDefault();
+                              moveNameValueFocus(sectionIdx, rowIdx, 0, 'name', 'right');
+                            }
+                          }}
+                          title="Row Header (expand on focus)"
+                        />
+                      )}
                       <input
-                        className="label-input"
-                        ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-0-name`] = el)}
+                        className={`value-input${pendingDelete && pendingDelete.type === 'row' && pendingDelete.sectionIdx === sectionIdx && pendingDelete.rowIdx === rowIdx ? ' pending-delete' : ''}`}
+                        ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-0-value`] = el)}
                         type="text"
-                        placeholder="Row Title"
-                        value={getRowTitleHeader()}
-                        onChange={(e) => updateRowTitleHeader(e.target.value)}
-                        onFocus={() => {
-                          setFocusedCell({ sectionIdx, rowIdx, colIdx: 0 });
-                          setFocusedNameField(`${sectionIdx}-${rowIdx}-0`);
-                        }}
-                        onBlur={() => setFocusedNameField(null)}
+                        placeholder="Row Value"
+                        value={row.value || ''}
+                        onChange={(e) => updateCell(sectionIdx, rowIdx, 0, 'value', e.target.value)}
+                        onFocus={() => setFocusedCell({ sectionIdx, rowIdx, colIdx: 0 })}
                         onKeyDown={e => {
+                          const caretAtStart = e.target.selectionStart === 0;
                           const caretAtEnd = e.target.selectionStart === e.target.value.length;
                           if ((e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
                             e.preventDefault();
-                            handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'name', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
+                            handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
                           } else if (
-                            e.key === 'ArrowRight' && (caretAtEnd || e.metaKey || e.ctrlKey)
+                            e.key === 'ArrowLeft' && (caretAtStart || e.metaKey || e.ctrlKey)
                           ) {
                             e.preventDefault();
-                            moveNameValueFocus(sectionIdx, rowIdx, 0, 'name', 'right');
+                            moveNameValueFocus(sectionIdx, rowIdx, 0, 'value', 'left');
+                          } else if (
+                            e.key === 'Enter' && caretAtEnd
+                          ) {
+                            e.preventDefault();
+                            // Level 1: add row
+                            insertRow(sectionIdx, rowIdx);
+                          } else if (
+                            e.key === 'Backspace' && caretAtStart && !e.target.value
+                          ) {
+                            const row = sectionData.rowSections[sectionIdx].rows[rowIdx];
+                            const hasSubBulletsWithText = row.cells && row.cells.some(cell => cell.value && cell.value.trim() !== '');
+                            if (sectionData.rowSections[sectionIdx].rows.length > 1) {
+                              if (hasSubBulletsWithText) {
+                                // Two-step delete
+                                if (
+                                  pendingDelete &&
+                                  pendingDelete.type === 'row' &&
+                                  pendingDelete.sectionIdx === sectionIdx &&
+                                  pendingDelete.rowIdx === rowIdx
+                                ) {
+                                  // Second backspace: delete
+                                  clearPendingDelete();
+                                  const updatedSections = sectionData.rowSections.map((section, sIdx) => {
+                                    if (sIdx !== sectionIdx) return section;
+                                    return {
+                                      ...section,
+                                      rows: section.rows.filter((_, rIdx) => rIdx !== rowIdx)
+                                    };
+                                  });
+                                  onDataChange({
+                                    ...sectionData,
+                                    rowSections: updatedSections
+                                  });
+                                  setTimeout(() => {
+                                    const prevIdx = rowIdx > 0 ? rowIdx - 1 : 0;
+                                    const key = `${sectionIdx}-${prevIdx}-0-value`;
+                                    const input = inputRefs.current[key];
+                                    if (input) input.focus();
+                                  }, 0);
+                                } else {
+                                  // First backspace: highlight
+                                  setPendingDelete({ type: 'row', sectionIdx, rowIdx, timestamp: Date.now() });
+                                  if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+                                  deleteTimeoutRef.current = setTimeout(() => {
+                                    setPendingDelete(null);
+                                  }, 3000);
+                                }
+                                e.preventDefault();
+                              } else {
+                                // One-step delete (no sub-bullets with text)
+                                const updatedSections = sectionData.rowSections.map((section, sIdx) => {
+                                  if (sIdx !== sectionIdx) return section;
+                                  return {
+                                    ...section,
+                                    rows: section.rows.filter((_, rIdx) => rIdx !== rowIdx)
+                                  };
+                                });
+                                onDataChange({
+                                  ...sectionData,
+                                  rowSections: updatedSections
+                                });
+                                setTimeout(() => {
+                                  const prevIdx = rowIdx > 0 ? rowIdx - 1 : 0;
+                                  const key = `${sectionIdx}-${prevIdx}-0-value`;
+                                  const input = inputRefs.current[key];
+                                  if (input) input.focus();
+                                }, 0);
+                                e.preventDefault();
+                              }
+                            }
                           }
                         }}
-                        title="Row Header (expand on focus)"
                       />
-                    )}
-                    <input
-                      className="value-input"
-                      ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-0-value`] = el)}
-                      type="text"
-                      placeholder="Row Value"
-                      value={row.value || ''}
-                      onChange={(e) => updateCell(sectionIdx, rowIdx, 0, 'value', e.target.value)}
-                      onFocus={() => setFocusedCell({ sectionIdx, rowIdx, colIdx: 0 })}
-                      onKeyDown={e => {
-                        const caretAtStart = e.target.selectionStart === 0;
-                        const caretAtEnd = e.target.selectionStart === e.target.value.length;
-                        if ((e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                          e.preventDefault();
-                          handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
-                        } else if (
-                          e.key === 'ArrowLeft' && (caretAtStart || e.metaKey || e.ctrlKey)
-                        ) {
-                          e.preventDefault();
-                          moveNameValueFocus(sectionIdx, rowIdx, 0, 'value', 'left');
-                        } else if (
-                          e.key === 'Enter' && caretAtEnd
-                        ) {
-                          e.preventDefault();
-                          // Level 1: add row
-                          insertRow(sectionIdx, rowIdx);
-                        }
-                      }}
-                    />
-                    {includeHeaders && (
-                      <span 
-                        className="name-badge" 
-                        title={getRowTitleHeader() || "Row Title"} 
-                        onClick={() => {
-                          const input = inputRefs.current[`${sectionIdx}-${rowIdx}-0-name`];
-                          if (input) input.focus();
-                        }}
-                      >
-                        {getRowTitleHeader() || 'Row Title'}
-                      </span>
-                    )}
+                      {includeHeaders && (
+                        <span 
+                          className="name-badge" 
+                          title={getRowTitleHeader() || "Row Title"} 
+                          onClick={() => {
+                            const input = inputRefs.current[`${sectionIdx}-${rowIdx}-0-name`];
+                            if (input) input.focus();
+                          }}
+                        >
+                          {getRowTitleHeader() || 'Row Title'}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                {row.cells && row.cells.length > 0 && (
-                  <ul className="sub-bullets">
-                    {row.cells.map((cell, cellIdx) => {
-                      const colIdx = cellIdx + 1;
-                      return (
-                        <li key={`sub-${cellIdx}`} className="sub-bullet">
-                          <div className="sub-bullet-item">
-                            <div className="bullet">-</div>
-                            <div className={`row-label ${focusedNameField === `${sectionIdx}-${rowIdx}-${colIdx}` ? 'name-input-focused' : ''}`}> 
-                              {includeHeaders && (
-                                <input
-                                  className="label-input"
-                                  ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-name`] = el)}
-                                  type="text"
-                                  placeholder={`Column ${colIdx}`}
-                                  value={getColumnHeader(colIdx)}
-                                  onChange={(e) => updateColumnHeader(colIdx, e.target.value)}
-                                  onFocus={() => {
-                                    setFocusedCell({ sectionIdx, rowIdx, colIdx });
-                                    setFocusedNameField(`${sectionIdx}-${rowIdx}-${colIdx}`);
-                                  }}
-                                  onBlur={() => setFocusedNameField(null)}
-                                  onKeyDown={e => {
-                                    const caretAtEnd = e.target.selectionStart === e.target.value.length;
-                                    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                                      e.preventDefault();
-                                      handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'name', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
-                                    } else if (
-                                      e.key === 'ArrowRight' && (caretAtEnd || e.metaKey || e.ctrlKey)
-                                    ) {
-                                      e.preventDefault();
-                                      moveNameValueFocus(sectionIdx, rowIdx, colIdx, 'name', 'right');
-                                    }
-                                  }}
-                                  title="Cell Header (expand on focus)"
-                                />
-                              )}
-                              <input
-                                className="value-input"
-                                ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-value`] = el)}
-                                type="text"
-                                placeholder="Value"
-                                value={cell.value || ''}
-                                onChange={(e) => updateCell(sectionIdx, rowIdx, colIdx, 'value', e.target.value)}
-                                onFocus={() => setFocusedCell({ sectionIdx, rowIdx, colIdx })}
-                                onKeyDown={e => {
-                                  const caretAtStart = e.target.selectionStart === 0;
-                                  const caretAtEnd = e.target.selectionStart === e.target.value.length;
-                                  if ((e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                                    e.preventDefault();
-                                    handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
-                                  } else if (
-                                    e.key === 'ArrowLeft' && (caretAtStart || e.metaKey || e.ctrlKey)
-                                  ) {
-                                    e.preventDefault();
-                                    moveNameValueFocus(sectionIdx, rowIdx, colIdx, 'value', 'left');
-                                  } else if (
-                                    e.key === 'Enter' && caretAtEnd
-                                  ) {
-                                    e.preventDefault();
-                                    // If last column in this row
-                                    const isLastCol = colIdx === (row.cells.length);
-                                    if (isLastCol) {
-                                      if (!e.target.value && isColumnEmpty(colIdx)) {
-                                        // Remove the last cell from this row (outdent)
-                                        const updatedSections = sectionData.rowSections.map((section, sIdx) => {
-                                          if (sIdx !== sectionIdx) return section;
-                                          return {
-                                            ...section,
-                                            rows: section.rows.map((r, rIdx) => {
-                                              if (rIdx !== rowIdx) return r;
-                                              return {
-                                                ...r,
-                                                cells: r.cells.slice(0, -1)
-                                              };
-                                            })
-                                          };
-                                        });
-                                        // Insert a new level 1 row (no sub-bullets) after the current row
-                                        const section = updatedSections[sectionIdx];
-                                        const newRow = {
-                                          id: Math.random().toString(36).slice(2),
-                                          name: '',
-                                          value: '',
-                                          cells: [] // No sub-bullets
-                                        };
-                                        section.rows = [
-                                          ...section.rows.slice(0, rowIdx + 1),
-                                          newRow,
-                                          ...section.rows.slice(rowIdx + 1)
-                                        ];
-                                        onDataChange({
-                                          ...sectionData,
-                                          rowSections: updatedSections
-                                        });
-                                        setTimeout(() => {
-                                          const key = `${sectionIdx}-${rowIdx + 1}-0-value`;
-                                          const input = inputRefs.current[key];
-                                          if (input) input.focus();
-                                        }, 0);
-                                      } else {
-                                        insertColumn(colIdx);
+                  {row.cells && row.cells.length > 0 && (
+                    <ul className="sub-bullets">
+                      {row.cells.map((cell, cellIdx) => {
+                        const colIdx = cellIdx + 1;
+                        const isPendingDelete =
+                          pendingDelete &&
+                          (
+                            (pendingDelete.type === 'col' && pendingDelete.colIdx === colIdx) ||
+                            (pendingDelete.type === 'row' && pendingDelete.sectionIdx === sectionIdx && pendingDelete.rowIdx === rowIdx)
+                          );
+                        return (
+                          <li key={`sub-${cellIdx}`} className="sub-bullet">
+                            <div className="sub-bullet-item">
+                              <div className="bullet">-</div>
+                              <div className={`row-label ${focusedNameField === `${sectionIdx}-${rowIdx}-${colIdx}` ? 'name-input-focused' : ''}`}> 
+                                {includeHeaders && (
+                                  <input
+                                    className="label-input"
+                                    ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-name`] = el)}
+                                    type="text"
+                                    placeholder={`Column ${colIdx}`}
+                                    value={getColumnHeader(colIdx)}
+                                    onChange={(e) => updateColumnHeader(colIdx, e.target.value)}
+                                    onFocus={() => {
+                                      setFocusedCell({ sectionIdx, rowIdx, colIdx });
+                                      setFocusedNameField(`${sectionIdx}-${rowIdx}-${colIdx}`);
+                                    }}
+                                    onBlur={() => setFocusedNameField(null)}
+                                    onKeyDown={e => {
+                                      const caretAtEnd = e.target.selectionStart === e.target.value.length;
+                                      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                        e.preventDefault();
+                                        handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'name', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
+                                      } else if (
+                                        e.key === 'ArrowRight' && (caretAtEnd || e.metaKey || e.ctrlKey)
+                                      ) {
+                                        e.preventDefault();
+                                        moveNameValueFocus(sectionIdx, rowIdx, colIdx, 'name', 'right');
+                                      } else if (
+                                        e.key === 'Backspace' && e.target.selectionStart === 0 && !e.target.value
+                                      ) {
+                                        // Prevent deleting the header cell
+                                        e.preventDefault();
                                       }
-                                    }
-                                  }
-                                }}
-                              />
-                              {includeHeaders && (
-                                <span 
-                                  className="name-badge" 
-                                  title={getColumnHeader(colIdx) || "Cell bullet"} 
-                                  onClick={() => {
-                                    const input = inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-name`];
-                                    if (input) input.focus();
+                                    }}
+                                    title="Cell Header (expand on focus)"
+                                  />
+                                )}
+                                <input
+                                  className={'value-input' + (isPendingDelete ? ' pending-delete' : '')}
+                                  ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-value`] = el)}
+                                  type="text"
+                                  placeholder="Value"
+                                  value={cell.value || ''}
+                                  onChange={(e) => updateCell(sectionIdx, rowIdx, colIdx, 'value', e.target.value)}
+                                  onFocus={() => setFocusedCell({ sectionIdx, rowIdx, colIdx })}
+                                  onKeyDown={e => {
+                                    // Minimal valid handler to fix syntax error
                                   }}
-                                >
-                                  {getColumnHeader(colIdx) || 'Cell bullet'}
-                                </span>
-                              )}
+                                />
+                                {includeHeaders && (
+                                  <span
+                                    className="name-badge"
+                                    title={getColumnHeader(colIdx) || "Cell bullet"}
+                                    onClick={() => {
+                                      const input = inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-name`];
+                                      if (input) input.focus();
+                                    }}
+                                  >
+                                    {getColumnHeader(colIdx) || 'Cell bullet'}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </li>
-            ))}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}
