@@ -1,0 +1,194 @@
+/**
+ * App.js compatible styling for AppV2 
+ * Preserves the look and feel of the original App.js
+ */
+
+/* Layout styles */
+.app-v2-container {
+  position: relative;
+  padding-top: 80px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 60px;
+}
+
+/* Header and toolbar styles */
+.app-v2-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+}
+
+.app-logo {
+  height: 40px;
+  margin-right: 20px;
+}
+
+.app-title {
+  font-size: 20px;
+  margin: 0;
+  color: #333;
+  font-weight: 400;
+}
+
+/* Footer/bottom toolbar */
+.bottom-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: white;
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.1);
+  z-index: 100;
+  padding: 10px 20px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* Table panel styles */
+.table-panel-v2 {
+  position: relative;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin: 10px 0;
+  overflow: auto;
+  max-height: calc(100vh - 200px);
+}
+
+.table-panel-v2 table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.table-panel-v2 th,
+.table-panel-v2 td {
+  border: 1px solid #e0e0e0;
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.table-panel-v2 tbody tr:nth-child(even) {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-panel-v2 tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.04);
+}
+
+.table-panel-v2 thead th {
+  background: #f5f5f5;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  font-weight: 500;
+}
+
+/* Content area */
+.content-area {
+  padding: 20px;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  min-height: calc(100vh - 200px);
+  position: relative;
+}
+
+/* Button styling */
+.btn-v2 {
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-v2:hover {
+  background-color: #e8e8e8;
+  border-color: #ccc;
+}
+
+.btn-v2-primary {
+  background-color: #4285f4;
+  color: white;
+  border: 1px solid #3367d6;
+}
+
+.btn-v2-primary:hover {
+  background-color: #3367d6;
+  border-color: #2a56c6;
+}
+
+.btn-v2-active {
+  background-color: #4caf50;
+  color: white;
+  border: 1px solid #388e3c;
+}
+
+.btn-v2-active:hover {
+  background-color: #388e3c;
+  border-color: #2e7d32;
+}
+
+/* Checkbox styling */
+.checkbox-v2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 12px;
+  border-radius: 4px;
+  background: white;
+  border: 1px solid #ddd;
+}
+
+.checkbox-v2:hover {
+  background-color: #f9f9f9;
+}
+
+.checkbox-v2 input[type="checkbox"] {
+  cursor: pointer;
+}
+
+/* Text mode controls */
+.text-mode-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 15px;
+  padding: 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+/* Keyboard shortcuts display */
+.keyboard-shortcuts {
+  display: flex;
+  gap: 12px;
+}
+
+.keyboard-shortcuts span {
+  display: inline-block;
+  padding: 2px 5px;
+  background: #f1f1f1;
+  border-radius: 3px;
+  border: 1px solid #ddd;
+  font-family: monospace;
+  cursor: help;
+  font-size: 11px;
+}

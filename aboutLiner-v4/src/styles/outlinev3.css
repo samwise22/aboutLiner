@@ -1,0 +1,959 @@
+/**
+ * OutlineModeV3 styles - Bringing back the original highly refined styles from App.js
+ * with adjustments for the proper bullet structure
+ */
+
+.outline-mode-v3 {
+  padding: 0 15px;
+  height: auto;
+}
+
+.outline-mode-v3 ul {
+  margin: 0;
+  padding: 0;
+  list-style-type: none;
+}
+
+.outline-mode-v3 li {
+  margin: 4px 0;
+  position: relative;
+}
+
+.outline-mode-v3 .row-item {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+}
+
+/* Improved row-level layout */
+.outline-mode-v3 .row-item > .cell-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 0; /* Remove default padding */
+  min-height: 28px; /* Fixed height for consistent alignment */
+  height: 28px; /* Fixed height to ensure consistent spacing */
+  box-sizing: border-box;
+}
+
+/* Sub bullet items label input styling */
+.outline-mode-v3 .sub-bullet-item .label-input:focus {
+  left: 10px !important; /* Keep at exact position of bullet (updated to match badge) */
+  transform: translateY(-50%) !important; /* Keep centered vertically */
+  transform-origin: left center;
+  top: 50% !important; /* Ensure vertical centering */
+  padding: 2px 8px !important; /* Standardized horizontal padding for better text display */
+  border-radius: 12px !important; /* Pill shape */
+  width: 100px !important; /* Fixed width to maintain consistent spacing */
+  max-width: 100px !important; /* Fixed max-width to maintain consistent spacing */
+  text-indent: 0 !important; /* Show text */
+  box-sizing: border-box !important; /* Ensure consistent box model */
+  height: 22px !important; /* Fixed height for consistent appearance */
+}
+
+/* Level 1 bullet row (parent row) */
+.outline-mode-v3 .cell-row {
+  display: flex;
+  align-items: center;
+  padding: 0; /* Remove vertical padding to ensure perfect centering */
+  min-height: 28px; /* Fixed height for consistent alignment */
+  height: 28px; /* Fixed height to ensure consistent spacing */
+  box-sizing: border-box;
+  user-select: text; /* Allow text selection */
+}
+
+.outline-mode-v3 .row-label {
+  display: flex;
+  align-items: center;
+  position: relative;
+  flex-grow: 1;
+  transition: all 0.25s ease;
+  padding-left: 0; /* Remove default padding - bullets positioned absolutely instead */
+  height: 28px; /* Ensure consistent height */
+}
+
+.outline-mode-v3 .row-input-group {
+  display: flex;
+  flex-grow: 1;
+  position: relative;
+}
+
+/* Ensure value input is properly positioned in relation to name-badge for row items */
+.outline-mode-v3 .row-item > .cell-row .value-input {
+  margin-left: 30px; /* Increased space for the circular badge to prevent overlap */
+  position: relative;
+  z-index: 4; /* Above background elements but below focused inputs */
+  transition: margin-left 0.25s ease; /* Smooth transition for offset changes */
+}
+
+/* Additional spacing fixes for row items */
+.outline-mode-v3 .row-item > .cell-row .row-label {
+  position: relative;
+  padding-left: 0;
+  display: flex;
+  align-items: center;
+}
+
+/* Improved bullet styling */
+.outline-mode-v3 .bullet {
+  display: inline-block;
+  width: 24px;
+  height: 24px;
+  text-align: center;
+  font-size: 1.3em;
+  cursor: grab;
+  color: #444;
+  line-height: 24px;
+  position: relative;
+  transition: all 0.2s;
+  user-select: none; /* Prevent text selection inside bullet */
+}
+
+/* Row level bullet (bigger and more prominent) - Hide it for consistency with sub-bullets */
+.outline-mode-v3 .row-item > .cell-row .bullet {
+  font-size: 1.4em;
+  color: #2a8888;
+  opacity: 0; /* Hide the default bullet */
+  display: none; /* Remove from flow */
+}
+
+/* Cell level bullet (smaller dash) - Hide it since we're using name-badge as bullet */
+.outline-mode-v3 .sub-bullet-item .bullet {
+  font-size: 1.2em;
+  color: #4a86e8;
+  opacity: 0; /* Hide the default bullet completely */
+  display: none; /* Actually remove it from flow */
+}
+
+/* Remove hover effect from bullets */
+.outline-mode-v3 .bullet {
+  color: #666;
+}
+
+/* Sub-bullet indentation and connecting line */
+.outline-mode-v3 .sub-bullets {
+  margin-left: 28px;
+  position: relative;
+  padding-left: 8px;
+}
+
+.outline-mode-v3 .sub-bullets::before {
+  content: "";
+  position: absolute;
+  left: -4px;
+  top: -2px;
+  height: calc(100% + 2px);
+  border-left: 1px dashed #ccc;
+}
+
+.outline-mode-v3 .sub-bullets .sub-bullet {
+  margin: 4px 0;
+  position: relative;
+}
+
+.outline-mode-v3 .sub-bullets .sub-bullet::before {
+  content: "";
+  position: absolute;
+  width: 8px;
+  height: 1px;
+  border-top: 1px dashed #ccc;
+  left: -12px;
+  top: 12px;
+}
+
+.outline-mode-v3 .sub-bullet-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-left: 0; /* Remove default padding */
+  box-sizing: border-box; /* Ensure consistent box model */
+  margin: 2px 0; /* Provide consistent vertical spacing */
+  user-select: text; /* Allow text selection */
+}
+
+.outline-mode-v3 .sub-bullet-item .value-input {
+  margin-left: 35px; /* Increased space for the circular badge to prevent overlap */
+  position: relative;
+  z-index: 4; /* Above background elements but below focused inputs */
+  padding-left: 1px; /* Minimal padding for more compact look */
+  transition: margin-left 0.25s ease; /* Smooth transition for spacing changes */
+}
+
+.outline-mode-v3 .sub-bullet-item .row-label {
+  position: relative;
+  padding-left: 0;
+  display: flex;
+  align-items: center !important; /* Ensure vertical centering */
+  height: 28px; /* Fixed height to match row-level */
+  min-height: 28px; /* Consistent min height */
+}
+
+/* Hide label inputs initially and show on focus */
+.outline-mode-v3 .label-input {
+  border: 1px solid transparent;
+  padding: 2px 8px !important; /* Standardized padding for all label-input states */
+  font-size: 14px;
+  background: transparent;
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.25s ease;
+  position: absolute;
+  left: 14px; /* Position where the badge is */
+  top: 50%; /* Ensure vertical centering */
+  transform: translateY(-50%); /* Vertical alignment with value field */
+  z-index: 5;
+  border-radius: 12px;
+  line-height: 16px; /* Consistent line height with value input */
+  display: flex;
+  align-items: center;
+  height: 22px; /* Match the height of value-input */
+  box-sizing: border-box !important; /* Ensure consistent box model */
+}
+
+/* Special positioning for sub-bullet label inputs */
+.outline-mode-v3 .sub-bullet-item .label-input {
+  left: 10px !important; /* Position at the same place as the bullet - updated for consistency */
+  margin-left: 0 !important; /* Ensure no additional margins cause misalignment */
+  position: absolute !important; /* Make absolutely positioned */
+  transform: translateY(-50%) !important; /* Vertical centering */
+  top: 50% !important; /* Vertical centering */
+}
+
+.outline-mode-v3 .label-input:focus {
+  width: auto;
+  min-width: 80px;
+  max-width: 95px; /* Base size for all inputs - will be overridden for row level */
+  opacity: 1;
+  padding: 2px 8px !important; /* Standardized horizontal padding for better text display */
+  border-radius: 12px;
+  border-color: rgba(74, 134, 232, 0.4);
+  outline: none;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  color: #4a86e8;
+  font-weight: 500;
+  font-style: normal;
+  left: 14px !important; /* Keep at the same position as the bullet for smooth expansion */
+  display: flex;
+  align-items: center;
+  text-align: center;
+  z-index: 15; /* Ensure it's above the name badge */
+  transform: translateY(-50%) !important; /* Ensure vertical centering */
+  top: 50% !important; /* Vertical centering */
+  margin-left: 0 !important; /* No added margins */
+  box-sizing: border-box !important; /* Ensure consistent box model */
+}
+
+/* Row-level label input */
+.outline-mode-v3 .row-item > .cell-row .label-input:focus {
+  border-color: rgba(42, 136, 136, 0.4);
+  color: #2a8888;
+  background: rgba(42, 136, 136, 0.05);
+  width: 100px !important; /* Fixed width matching our critical fixes */
+  min-width: 100px !important; /* Consistent min-width */
+  max-width: 100px !important; /* Fixed max-width to match critical fixes */
+  opacity: 1;
+  left: 14px !important; /* Keep exact same position as the bullet */
+  transform: translateY(-50%) !important; /* Keep vertical alignment */
+  padding: 2px 8px !important; /* Standardized horizontal padding for better text display */
+  top: 50% !important; /* Vertical centering */
+  border-radius: 12px !important; /* Pill shape */
+  height: 22px !important; /* Fixed height to match badge */
+  line-height: 16px !important; /* Improve text alignment within the input */
+  box-sizing: border-box !important; /* Ensure padding is included in height */
+  caret-color: #2a8888 !important; /* Make caret visible with matching color */
+}
+
+/* Special positioning for row level label inputs */
+.outline-mode-v3 .row-item > .cell-row .label-input {
+  left: 14px !important; /* Position at the same place as the bullet - use !important */
+  margin-left: 0 !important; /* Ensure no additional margins cause misalignment */
+  transform-origin: left center;
+  position: absolute; /* Ensure absolute positioning */
+  top: 50% !important; /* Vertical centering */
+  transform: translateY(-50%) !important; /* Ensure vertical alignment */
+  height: 22px !important; /* Fixed height to match badge */
+  line-height: 16px !important; /* Improve text alignment within the input */
+  box-sizing: border-box !important; /* Ensure padding is included in height */
+  display: flex !important; /* Use flexbox for better alignment */
+  align-items: center !important; /* Center content vertically */
+}
+
+/* Cell-level label input - match column header pill style and ensure compact size */
+.outline-mode-v3 .sub-bullet-item .label-input:focus {
+  border-color: rgba(74, 134, 232, 0.4);
+  color: #4a86e8;
+  background: rgba(74, 134, 232, 0.05);
+  width: 100px !important; /* Fixed width for consistent spacing */
+  min-width: 100px !important; /* Consistent min-width */
+  max-width: 100px !important; /* Fixed max-width to prevent overlap */
+  padding: 2px 8px !important; /* Standardized padding with other label inputs */
+  height: 22px !important; /* Fixed height for consistent appearance */
+  box-sizing: border-box !important; /* Ensure consistent box model */
+  caret-color: #4a86e8 !important; /* Make caret visible with matching color */
+}
+
+/* Remove hover behavior - only focus will expand the name field */
+
+.outline-mode-v3 .value-input {
+  border: 1px solid transparent;
+  padding: 3px 4px;
+  font-size: 14px;
+  flex-grow: 1;
+  background: transparent;
+  min-width: 150px;
+  z-index: 4;
+  margin-left: 0;
+  transition: margin-left 0.25s ease;
+  align-self: center !important; /* Force vertical centering with flexbox parent */
+  height: 22px; /* Match the height of the expanded pill */
+  line-height: 16px; /* Consistent line height with label input */
+  box-sizing: border-box;
+  vertical-align: middle;
+  margin-top: 0 !important; /* Ensure no browser default margins */
+  margin-bottom: 0 !important; /* Ensure no browser default margins */
+}
+
+/* Offset value input when label is visible (overridden by critical fixes at the end) */
+.outline-mode-v3 .label-input:focus + .value-input,
+.outline-mode-v3 .row-item > .cell-row .name-input-focused .value-input {
+  margin-left: 120px; /* Base value - will be overridden by more specific rules */
+}
+
+/* Ensure row-level value input shifts right (overridden by critical fixes at the end) */
+.outline-mode-v3 .row-item > .cell-row .name-input-focused .value-input,
+.outline-mode-v3 .row-item > .cell-row .label-input:focus + .value-input {
+  margin-left: 120px; /* Base value - will be overridden by more specific rules */
+}
+
+/* Prevent overlap between name-badge and value-input for sub-bullets (overridden by critical fixes) */
+.outline-mode-v3 .sub-bullet-item .name-input-focused .value-input,
+.outline-mode-v3 .sub-bullet-item .label-input:focus + .value-input {
+  margin-left: 110px; /* Base value - will be overridden by more specific rules */
+}
+
+/* Special handling for sub-bullet items to adjust spacing */
+.outline-mode-v3 .sub-bullet-item .row-label {
+  position: relative;
+  display: flex;
+  align-items: center !important; /* Ensure vertical centering */
+  height: 28px; /* Fixed height to match row-level */
+  min-height: 28px; /* Consistent min height */
+}
+
+/* Prevent overlap between bullet, label input and value input in sub-bullet items */
+.outline-mode-v3 .sub-bullet-item .label-input {
+  margin-left: 0 !important; /* No additional margin - stay at 14px left */
+  transition: all 0.25s ease;
+}
+
+.outline-mode-v3 .label-input:hover,
+.outline-mode-v3 .value-input:hover {
+  border-color: #ddd;
+}
+
+.outline-mode-v3 .label-input:focus,
+.outline-mode-v3 .value-input:focus {
+  border-color: #aaa;
+  outline: none;
+  background: rgba(255, 255, 255, 0.9);
+  caret-color: #333 !important; /* Make caret clearly visible */
+}
+
+.outline-mode-v3 .value-input {
+  color: #333;
+}
+
+.outline-mode-v3 .label-input {
+  color: #666;
+  font-style: italic;
+}
+
+/* Row ID badge styling */
+.outline-mode-v3 .row-id {
+  font-size: 12px;
+  color: #888;
+  padding: 0 4px;
+  margin-right: 6px;
+  display: none; /* Hide IDs in outline mode as they're managed by includeIds prop */
+  border-radius: 3px;
+  background: #f0f0f0;
+}
+
+/* Section styling - pill design */
+.outline-mode-v3 .section-name {
+  font-size: 11px;
+  color: #2a8;
+  padding: 1px 8px;
+  margin-right: 6px;
+  border-radius: 12px;
+  background: rgba(42, 136, 136, 0.1);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  border: 1px solid rgba(42, 136, 136, 0.2);
+  display: none; /* Hide all section names in the outline mode */
+}
+
+/* Column section pill for sub-bullets (different color from row sections) - Hidden in this version */
+.outline-mode-v3 .sub-bullet-item .section-name {
+  display: none; /* Hide section names in the outline mode */
+}
+
+/* Delete button styling */
+.outline-mode-v3 .delete-row,
+.outline-mode-v3 .delete-col {
+  opacity: 0; /* Completely invisible until hover */
+  cursor: pointer;
+  color: #f55;
+  font-size: 12px; /* Standardized size to match the smaller button */
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  padding: 2px;
+  width: 16px;
+  height: 16px;
+  text-align: center;
+  line-height: 12px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+/* Specific positioning for delete-row */
+.outline-mode-v3 .delete-row {
+  margin-left: 4px;
+}
+
+/* Specific positioning for delete-col */
+.outline-mode-v3 .delete-col {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.outline-mode-v3 .cell-row:hover .delete-row,
+.outline-mode-v3 .sub-bullet-item:hover .delete-col {
+  opacity: 0.7; /* Slightly increased opacity for better visibility */
+}
+
+.outline-mode-v3 .cell-row:hover .delete-row:hover,
+.outline-mode-v3 .sub-bullet-item:hover .delete-col:hover {
+  opacity: 1;
+  background-color: rgba(255, 70, 70, 0.2); /* Slightly increased for better contrast */
+}
+
+/* Style for pending delete - enhanced visual feedback without text */
+.outline-mode-v3 .pending-delete {
+  background-color: rgba(255, 80, 80, 0.25); /* Slightly increased for better visibility */
+  animation: pulse-delete 1.5s infinite alternate;
+  position: relative;
+  transition: background-color 0.3s ease;
+  box-shadow: inset 0 0 0 1px rgba(255, 80, 80, 0.4); /* Added inner border for more clear indication */
+  border-radius: 4px;
+}
+
+/* Removed the "Click again to delete" text indicator, relying on visual highlighting only */
+
+/* Highlight delete buttons when item is pending delete */
+.outline-mode-v3 .pending-delete .delete-row,
+.outline-mode-v3 .pending-delete .delete-col {
+  opacity: 1 !important; 
+  color: rgb(255, 255, 255) !important; /* White color for better contrast */
+  font-weight: bold;
+  background-color: rgba(255, 70, 70, 0.8) !important; /* Solid background for emphasis */
+  box-shadow: 0 0 4px rgba(255, 0, 0, 0.4);
+}
+
+/* Style for affected sub-bullets during delete */
+.outline-mode-v3 .row-item.pending-delete .sub-bullets .sub-bullet {
+  background-color: rgba(255, 80, 80, 0.1);
+  border-left: 2px solid rgba(255, 80, 80, 0.5);
+  border-right: 2px solid rgba(255, 80, 80, 0.5);
+  margin-left: -2px;
+  margin-right: -2px;
+  border-radius: 4px;
+  transition: background-color 0.3s ease;
+}
+
+/* Special style for highlighting the same position sub-bullets in all rows */
+.outline-mode-v3 .sub-bullet.highlight-same-position {
+  border: 1px dashed rgba(255, 80, 80, 0.4);
+  background-color: rgba(255, 80, 80, 0.05);
+}
+
+/* Enhance visual indicator when hovering delete buttons */
+.outline-mode-v3 .delete-row:hover,
+.outline-mode-v3 .delete-col:hover {
+  background-color: rgba(255, 70, 70, 0.15);
+  /* border-radius already set in common styles */
+  /* No scale transform to prevent "dip" effect */
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Animation for pending delete state - button animation removed */
+@keyframes pulse-delete {
+  0% { background-color: rgba(255, 80, 80, 0.2); }
+  100% { background-color: rgba(255, 80, 80, 0.35); }
+}
+
+/* Drag and drop styles */
+.outline-mode-v3 .dragging {
+  opacity: 0.5;
+}
+
+.outline-mode-v3 .drag-over {
+  border-top: 2px solid #4a4;
+}
+
+.outline-mode-v3 .insertion-line {
+  position: absolute;
+  height: 2px;
+  background-color: #4a4;
+  left: 0;
+  right: 0;
+  z-index: 5;
+}
+
+/* Highlighted cell */
+.outline-mode-v3 .highlight {
+  background-color: rgba(66, 170, 66, 0.15);
+}
+
+/* Quickfill dropdown */
+.outline-mode-v3 .quickfill-dropdown {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  min-width: 150px;
+}
+
+.outline-mode-v3 .quickfill-option {
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.outline-mode-v3 .quickfill-option:hover {
+  background: #f0f0f0;
+}
+
+.outline-mode-v3 .quickfill-option.selected {
+  background: #e3f2fd;
+}
+
+.outline-mode-v3 .quickfill-group {
+  font-weight: bold;
+  padding: 6px 12px;
+  color: #666;
+  background: #f7f7f7;
+  font-size: 12px;
+}
+
+/* Add spacing between sections */
+.outline-mode-v3 .row-section:not(:first-child) {
+  margin-top: 20px;
+  padding-top: 10px;
+  border-top: 1px dashed #ccc;
+}
+
+/* Section label */
+.outline-mode-v3 .section-label {
+  font-size: 16px;
+  font-weight: bold;
+  color: #444;
+  margin-bottom: 8px;
+  padding-left: 20px;
+}
+
+.outline-mode-v3 .section-label .section-name-input {
+  border: none;
+  border-bottom: 1px dashed transparent;
+  background: transparent;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  width: 100%;
+}
+
+.outline-mode-v3 .section-label .section-name-input:hover {
+  border-bottom-color: #ccc;
+}
+
+.outline-mode-v3 .section-label .section-name-input:focus {
+  outline: none;
+  border-bottom-color: #888;
+}
+
+/* Add styles for displaying name badges when name field has content */
+.outline-mode-v3 .name-badge {
+  font-size: 12px;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  margin-right: 12px;
+  border-radius: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  position: absolute;
+  left: 14px;
+  z-index: 3;
+  opacity: 0;
+  transition: all 0.2s ease;
+  text-indent: -9999px; /* Hide text initially */
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Special positioning for sub-bullets to ensure it's the only visible element when not focused */
+.outline-mode-v3 .sub-bullet-item .name-badge {
+  left: 10px; /* Moved closer to the left edge for more compact layout */
+  top: 50%; /* Use percentage for precise centering */
+  z-index: 10; /* Ensure it appears above other elements */
+  transform: translateY(-50%); /* Ensure vertical centering */
+  position: absolute; /* Make sure it's absolutely positioned */
+}
+
+/* Row-level name badge - green like section headers, circular when collapsed */
+.outline-mode-v3 .row-item > .cell-row .name-badge {
+  color: #2a8888;
+  background: rgba(42, 136, 136, 0.8); /* Darker green to be more prominent */
+  border: 1px solid rgba(42, 136, 136, 0.5);
+  left: 14px !important; /* Position in place of bullet - use !important */
+  top: 50% !important; /* Use percentage for precise centering */
+  transform: translateY(-50%) !important; /* Vertical centering - use !important */
+  cursor: pointer;
+  /* Ensure this is the only visible element when not focused */
+  opacity: 1;
+  display: flex;
+  transition: width 0.25s ease, max-width 0.25s ease, padding 0.25s ease, border-radius 0.25s ease, text-indent 0.25s ease;
+  transform-origin: left center;
+  align-items: center;
+  justify-content: center;
+  position: absolute; /* Ensure absolute positioning */
+  margin-left: 0 !important; /* No additional margins */
+  width: 16px !important; /* Match expanded pill height for visual consistency */
+  height: 16px !important; /* Match expanded pill height for visual consistency */
+  padding: 0 !important; /* Remove padding to ensure perfect circle */
+  box-sizing: border-box !important; /* Ensure padding is included in height */
+  border-radius: 50% !important; /* Perfect circle when collapsed */
+  text-indent: -9999px !important; /* Hide text when collapsed */
+}
+
+/* Cell-level name badge - blue like column headers, circular when collapsed */
+.outline-mode-v3 .sub-bullet-item .name-badge {
+  color: #4a86e8;
+  background: rgba(74, 134, 232, 0.8); /* Darker blue to be more visible */
+  border: 1px solid rgba(74, 134, 232, 0.5);
+  left: 14px; /* Position in place of bullet */
+  top: 50%; /* Use percentage for precise centering */
+  transform: translateY(-50%);
+  cursor: pointer;
+  z-index: 10;
+  opacity: 1; /* Always visible like level 1 bullets */
+  transition: width 0.25s ease, max-width 0.25s ease, padding 0.25s ease, border-radius 0.25s ease, text-indent 0.25s ease;
+  transform-origin: left center;
+  width: 16px; /* Match expanded pill height for visual consistency */
+  height: 16px; /* Match expanded pill height for visual consistency */
+  padding: 0; /* Remove padding to ensure perfect circle */
+  box-sizing: border-box; /* Ensure padding is included in height */
+  border-radius: 50%; /* Perfect circle when collapsed */
+  text-indent: -9999px; /* Hide text when collapsed */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: absolute;
+}
+
+/* Show name badge when name has content and field is not focused */
+.outline-mode-v3 .has-name .name-badge {
+  opacity: 1;
+}
+
+/* Make sure sub-bullet name badge is always visible when it has a name */
+.outline-mode-v3 .sub-bullet-item .has-name .name-badge {
+  opacity: 1;
+}
+
+/* Don't do anything on hover - only respond to focus */
+.outline-mode-v3 .row-label .name-badge {
+  opacity: 1; /* Always visible when has-name */
+  pointer-events: auto; /* Ensure it's clickable */
+}
+
+/* Show label input only when focused, not on hover */
+.outline-mode-v3 .row-label .label-input:focus {
+  opacity: 1;
+  width: auto;
+  max-width: 150px;
+  padding: 2px 8px !important; /* Consistent padding */
+  border-radius: 12px;
+  z-index: 20; /* Higher than the badge */
+}
+
+/* Make the name badge clickable - no hover effect */
+.outline-mode-v3 .name-badge {
+  cursor: pointer;
+  opacity: 1 !important;
+}
+
+/* Remove all hover effects, focus only comes from clicks or keyboard navigation */
+.outline-mode-v3 .label-input:focus {
+  opacity: 1 !important;
+  width: 100px !important; /* Fixed width to match critical fixes */
+  min-width: 100px !important; /* Fixed min-width */
+  max-width: 100px !important; /* Fixed max-width */
+  padding: 2px 8px !important; /* Consistent padding across all label inputs */
+  border-radius: 12px !important;
+  z-index: 20 !important;
+  left: 14px !important; /* Keep consistent positioning with bullet */
+  height: 22px !important; /* Fixed height for consistent appearance */
+}
+
+/* Removed hover behavior for row-level name badges - only expand on focus */
+
+/* Hide name badge when input is focused */
+.outline-mode-v3 .name-input-focused .name-badge {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Show label input when parent element has focus */
+.outline-mode-v3 .name-input-focused .label-input {
+  opacity: 1;
+  width: 100px; /* Fixed width to match critical fixes */
+  min-width: 100px; /* Fixed min-width */
+  max-width: 100px; /* Fixed max-width */
+  padding: 2px 8px !important; /* Consistent padding with other label inputs */
+  z-index: 20;
+}
+
+/* Ensure fixed width for sub-bullet label inputs when focused */
+.outline-mode-v3 .sub-bullet-item .name-input-focused .label-input {
+  width: 100px !important; /* Fixed width to ensure consistent spacing */
+  max-width: 100px !important; /* Fixed max-width to ensure consistent spacing */
+  min-width: 100px !important; /* Fixed min-width for consistent spacing */
+  padding: 2px 8px !important; /* Standardized padding */
+  box-sizing: border-box !important; /* Ensure consistent box model */
+}
+
+/* Make sure only one element is visible for sub-bullets when not focused */
+.outline-mode-v3 .sub-bullet-item .has-name .name-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  z-index: 10;
+  background: rgba(74, 134, 232, 0.8); /* Darker blue to ensure it's the prominent element */
+}
+
+/* Shift value input when name badge is visible */
+.outline-mode-v3 .has-name .value-input {
+  margin-left: 50px; /* Increased margin to ensure no overlap with circular badge */
+}
+
+/* Specific margin for sub-bullet items when name badge is visible */
+.outline-mode-v3 .sub-bullet-item.has-name .value-input {
+  margin-left: 45px; /* Increased margin for sub-bullets to prevent overlap */
+}
+
+/* Add frequency badge styling */
+.outline-mode-v3 .frequency-badge {
+  color: #888;
+  margin-left: 5px;
+  font-size: 0.8em;
+}
+
+/* Enhance the transition for collapsible/expandable name fields */
+.outline-mode-v3 .row-label {
+  position: relative;
+  transition: padding-left 0.25s ease;
+}
+
+/* Improve the appearance of name badges */
+.outline-mode-v3 .name-badge {
+  transition: all 0.25s ease;
+  opacity: 0.9;
+}
+
+/* Removed hover behavior for name badges in row-label */
+
+/* Removed hover effect on bullets - only expand on focus */
+
+/* Correct the DOM structure and element visibility */
+.outline-mode-v3 .row-label {
+  position: relative;
+}
+
+.outline-mode-v3 .name-badge {
+  position: absolute;
+  left: 14px;
+}
+
+.outline-mode-v3 .label-input {
+  position: absolute;
+  left: 14px;
+}
+
+/* When input is focused, hide the name badge */
+.outline-mode-v3 .label-input:focus ~ .name-badge {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Remove hover behavior - only focus should trigger the expanded state */
+.outline-mode-v3 .name-input-focused .name-badge {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+.outline-mode-v3 .name-input-focused .label-input {
+  display: block !important;
+  opacity: 1 !important;
+  width: 100px !important; /* Fixed width to match critical fixes */
+  min-width: 100px !important; /* Consistent min-width */
+  max-width: 100px !important; /* Fixed max-width */
+}
+
+/* CRITICAL FIXES - THESE MUST BE THE LAST RULES IN THE FILE */
+
+/* Text truncation fixes - ensure text always truncates at the END with ellipsis */
+.outline-mode-v3 .label-input:focus,
+.outline-mode-v3 .name-input-focused .label-input {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  direction: ltr !important; /* Force left-to-right text direction */
+  text-indent: 0 !important; /* Reset any text-indent that might be applied */
+  text-align: left !important;
+  padding: 2px 8px !important;
+}
+
+/* Master override for all focused label input value positioning */
+.outline-mode-v3 .label-input:focus + .value-input,
+.outline-mode-v3 .name-input-focused .value-input {
+  margin-left: 120px !important; /* Perfect gap - not too large, not too small */
+  position: relative !important;
+  left: 0 !important; /* No additional offset */
+  box-sizing: border-box !important;
+}
+
+/* Master override for sub-bullet specific value positioning */
+.outline-mode-v3 .sub-bullet-item .label-input:focus + .value-input,
+.outline-mode-v3 .sub-bullet-item .name-input-focused .value-input {
+  margin-left: 110px !important; /* Slightly tighter spacing for sub-bullets */
+}
+
+/* Final width overrides - very last rules in the file */
+.outline-mode-v3 .label-input:focus,
+.outline-mode-v3 .name-input-focused .label-input {
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
+}
+
+/* Text truncation and alignment fixes - MUST BE AFTER ALL OTHER RULES */
+.outline-mode-v3 .label-input {
+  /* Base styles for all label inputs */
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+/* Drag handle styling */
+.outline-mode-v3 .drag-handle {
+  cursor: grab !important;
+  position: relative;
+}
+
+.outline-mode-v3 .drag-handle:hover::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  right: -3px;
+  bottom: -3px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.05);
+  z-index: -1;
+}
+
+.outline-mode-v3 .drag-handle:active {
+  cursor: grabbing !important;
+}
+
+/* End of CSS file */
+
+/* Ensure proper text selection behavior */
+.outline-mode-v3 .label-input,
+.outline-mode-v3 .value-input,
+.outline-mode-v3 .section-name-input {
+  user-select: text !important; /* Explicitly allow text selection in inputs */
+  cursor: text !important; /* Use text cursor for inputs */
+  /* Ensure caret is visible */
+  caret-color: currentColor !important; 
+  outline: none !important; /* Remove default outline and use our custom styling */
+}
+
+.outline-mode-v3 .bullet {
+  cursor: grab !important; /* Show grab cursor to indicate draggable */
+}
+
+.outline-mode-v3 .bullet:active {
+  cursor: grabbing !important; /* Show grabbing cursor when actively dragging */
+}
+
+/* Prevent text selection in badges and bullets */
+.outline-mode-v3 .name-badge,
+.outline-mode-v3 .section-name,
+.outline-mode-v3 .bullet {
+  user-select: none !important;
+}
+
+/* Ensure proper input caret visibility and text editing experience */
+.outline-mode-v3 .label-input,
+.outline-mode-v3 .value-input,
+.outline-mode-v3 .section-name-input {
+  caret-color: currentColor !important; /* Make caret match the text color by default */
+  cursor: text !important; /* Ensure text cursor is shown */
+  /* Default caret, will be overridden for specific focus states */
+}
+
+/* Ensure caret is visible in all input fields */
+.outline-mode-v3 .label-input::selection,
+.outline-mode-v3 .value-input::selection,
+.outline-mode-v3 .section-name-input::selection {
+  background: rgba(74, 134, 232, 0.3) !important; /* Light blue selection */
+  color: inherit !important; /* Keep text color */
+}
+
+/* Input focus refinements - ensure cursor is always visible */
+.outline-mode-v3 input {
+  -webkit-appearance: none; /* Remove default styling */
+  appearance: none; /* Standard property for removing default styling */
+  -webkit-tap-highlight-color: rgba(0,0,0,0); /* Remove tap highlight on mobile */
+}
+
+/* Ensure inputs show a blinking cursor when clicked */
+.outline-mode-v3 input:focus {
+  caret-color: currentColor !important; /* Ensure caret is always visible */
+}
+
+/* End of CSS file */

@@ -1,0 +1,199 @@
+/* reorderMode.css */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Hide the original item while dragging, but keep it slightly visible for drag operation */
+.dragging {
+  opacity: 0.1 !important; /* Nearly hide the original item but keep some presence */
+  background-color: #e6f0ff !important;
+  border: 1px dashed #4d90fe !important;
+}
+
+/* SortableJS specific styles */
+.sortable-ghost {
+  opacity: 0.4 !important; /* Show ghost as a visible placeholder */
+  background-color: #e3f2fd !important; /* Light blue background */
+  border: 2px dashed #2196f3 !important; /* Stronger border */
+  box-shadow: none !important; /* Remove shadow to make it flatter */
+}
+
+.sortable-chosen {
+  box-shadow: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23) !important;
+  z-index: 10;
+}
+
+.sortable-drag {
+  opacity: 0.95 !important; /* Make it more visible */
+  box-shadow: 0 8px 16px rgba(0,0,0,0.2) !important; /* Stronger shadow */
+  background-color: #ffffff !important; /* White background */
+  z-index: 1000;
+  transform: scale(1.02) !important; /* Slightly larger for better visibility */
+  border: 1px solid #bbdefb !important; /* Blue border */
+}
+
+.sortable-fallback {
+  opacity: 0.9 !important;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3) !important;
+}
+
+/* Style for the drag handle */
+.drag-handle {
+  cursor: grab !important;
+  padding: 6px;
+}
+
+.drag-handle:hover {
+  color: #3f51b5 !important;
+  background-color: rgba(0,0,0,0.03);
+  border-radius: 4px;
+}
+
+/* Section styling */
+.section-header {
+  margin-bottom: 8px;
+  position: relative; /* Ensure positioning context for drop overlays */
+}
+
+.section-end-target {
+  border-radius: 4px;
+}
+
+/* Section drop zone styling */
+.section-drop-zone {
+  transition: background-color 0.15s ease;
+}
+
+.section-drop-zone:hover {
+  background-color: rgba(77, 144, 254, 0.05); /* Very light highlight on hover */
+}
+
+.section-drop-zone.drop-target {
+  background-color: rgba(77, 144, 254, 0.1); /* Slightly stronger highlight when active */
+  border-color: rgba(77, 144, 254, 0.3);
+}
+
+/* Styles for items that can't be dragged */
+.undraggable-item {
+  background-color: #fff9f9 !important;
+  border: 1px dashed #ffcccc !important;
+  cursor: not-allowed !important;
+  position: relative;
+}
+
+.undraggable-item::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-left: 3px solid #ff5252;
+  pointer-events: none;
+}
+
+/* Visual feedback for non-draggable items */
+.not-draggable {
+  border: 2px solid #ff5252 !important;
+  box-shadow: 0 0 8px rgba(255, 82, 82, 0.4);
+}
+
+/* Animation for tooltip */
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-10px); }
+  15% { opacity: 1; transform: translateY(0); }
+  85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+/* Gap effect classes - only using space for drop indication */
+.gap-before {
+  margin-top: 38px !important; /* Standard row height */
+  border-top: 2px solid rgba(77, 144, 254, 0.2); /* Very light border to make gap more visible */
+  position: relative; /* Needed for positioning the overlay */
+}
+
+.gap-after {
+  margin-bottom: 38px !important; /* Standard row height */
+  border-bottom: 2px solid rgba(77, 144, 254, 0.2); /* Very light border to make gap more visible */
+  position: relative; /* Needed for positioning the overlay */
+}
+
+/* Gap overlay elements that serve as active drop targets */
+.gap-overlay-before {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -38px; /* Position at the start of the gap */
+  height: 38px; /* Match the gap height */
+  z-index: 100;
+  pointer-events: all; /* Ensure it accepts mouse events */
+  background-color: rgba(77, 144, 254, 0.05); /* Very subtle highlight */
+  width: 100%; /* Ensure full width */
+}
+
+.gap-overlay-after {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -38px; /* Position at the end of the element */
+  height: 38px; /* Match the gap height */
+  z-index: 100;
+  pointer-events: all; /* Ensure it accepts mouse events */
+  background-color: rgba(77, 144, 254, 0.05); /* Very subtle highlight */
+  width: 100%; /* Ensure full width */
+}
+
+/* Container for relative positioning */
+.reorder-item-container {
+  position: relative; /* Ensure relative positioning for all list items */
+}
+
+/* Nested sortable structure styling */
+.sortable-nested-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.section-group {
+  background-color: #fafafa;
+  border-radius: 6px;
+  padding: 5px;
+  transition: box-shadow 0.3s ease;
+}
+
+.section-group:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
+.section-items {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 10px;
+  min-height: 10px; /* Ensure empty sections still have drop area */
+}
+
+/* Style for section being dragged (future feature) */
+.section-group.sortable-chosen {
+  background-color: #f0f4ff;
+  border: 1px dashed #3f51b5;
+}
+
+.section-group.sortable-ghost {
+  opacity: 0.5;
+  background-color: #e3f2fd;
+}
+
+/* Style for the unsectioned items group */
+.unsectioned-group {
+  padding: 5px;
+  background-color: #fafafa;
+  border-radius: 6px;
+}
+
+/* Ensure section headers are visibly undraggable */
+.section-header.undraggable-item::before {
+  display: none; /* Remove the red border indicator */
+}
