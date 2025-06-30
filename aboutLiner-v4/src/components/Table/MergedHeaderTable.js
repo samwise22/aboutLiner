@@ -80,22 +80,24 @@ const MergedHeaderTable = ({
     <table className="merged-header-table">
       <thead>
         <tr>
-          {/* Section header */}
-          <th rowSpan={2} className="corner-header">Section</th>
+          {/* Section header - only if any sectionName is non-empty */}
+          {rowSections.some(s => s.sectionName) && (
+            <th rowSpan={2} className="corner-header">Section</th>
+          )}
           {/* ID header (if shown) */}
           {showIds && (
             <th rowSpan={2} className="id-col-header">ID</th>
           )}
           {/* Row title header */}
-          <th rowSpan={2}>{flattenedRows[0]?.row?.name || 'Title'}</th>
-          {/* Column section headers (spanning columns) */}
-          {columnSectionGroups.map(group => (
+          <th rowSpan={2} style={{ textAlign: 'center', verticalAlign: 'middle' }}>{flattenedRows[0]?.row?.name || 'Title'}</th>
+          {/* Column section headers (spanning columns) - only if any col sectionName is non-empty */}
+          {columnSectionGroups.some(g => g.sectionName) && columnSectionGroups.map(group => (
             <th
               key={group.sectionId}
               colSpan={group.cols.length}
               className="column-section-header"
             >
-              {group.sectionName === '' ? '' : group.sectionName}
+              {group.sectionName}
             </th>
           ))}
         </tr>
@@ -106,14 +108,16 @@ const MergedHeaderTable = ({
               <th
                 key={`col-${col.idx}`}
                 className={hoveredCol === col.idx ? 'highlight-column' : ''}
-                onClick={() => onCellClick && onCellClick(0, col.idx)}
+                onClick={() => {
+                  // Focus the name field (pill) for the first row of this column in the outline
+                  if (onCellClick) onCellClick(0, col.idx, { focusName: true });
+                }}
                 onDoubleClick={() => onCellDoubleClick && onCellDoubleClick(0, col.idx)}
                 onMouseEnter={() => onCellHover && onCellHover(col.idx)}
                 onMouseLeave={() => onCellLeave && onCellLeave()}
               >
                 <span
-                  className="column-header-pill"
-                  style={{ backgroundColor: `var(--col-color-${col.idx + 1})` }}
+                  className={`column-header-pill col-badge-${col.idx + 1}`}
                 >
                   {col.name || `Col ${col.idx + 1}`}
                 </span>
@@ -127,10 +131,10 @@ const MergedHeaderTable = ({
           const { row, sectionId, sectionName, firstInSection, rowsInSection } = rowData;
           return (
             <tr key={`row-${row.id || flatRowIdx}`}>
-              {/* Section cell (rowspan for the entire section) */}
-              {firstInSection && (
+              {/* Section cell (rowspan for the entire section) - only if any sectionName is non-empty */}
+              {rowSections.some(s => s.sectionName) && firstInSection && (
                 <td rowSpan={rowsInSection} className="row-section-cell">
-                  {sectionName === '' ? '' : sectionName}
+                  {sectionName}
                 </td>
               )}
               {/* ID cell (if shown) */}
@@ -140,7 +144,7 @@ const MergedHeaderTable = ({
               {/* Row title cell */}
               <td 
                 className={
-                  `row-title-cell ${focusedCell.row === flatRowIdx && focusedCell.col === 0 ? 'highlight-cell' : ''}`
+                  `row-title-cell${focusedCell.row === flatRowIdx && focusedCell.col === 0 ? ' highlight-cell focused-table-cell' : ''}`
                 }
                 onClick={() => onCellClick && onCellClick(flatRowIdx, 0)}
                 onDoubleClick={() => onCellDoubleClick && onCellDoubleClick(flatRowIdx, 0)}
@@ -152,7 +156,10 @@ const MergedHeaderTable = ({
                 <td
                   key={`cell-${row.id}-${cellIdx}`}
                   className={
-                    `data-cell ${hoveredCol === cellIdx ? 'highlight-column' : ''} ${focusedCell.row === flatRowIdx && focusedCell.col === cellIdx + 1 ? 'highlight-cell' : ''}`
+                    `data-cell${hoveredCol === cellIdx ? ' highlight-column' : ''}` +
+                    (focusedCell.row === flatRowIdx && focusedCell.col === cellIdx + 1
+                      ? ' focused-table-cell'
+                      : '')
                   }
                   onClick={() => onCellClick && onCellClick(flatRowIdx, cellIdx + 1)}
                   onDoubleClick={() => onCellDoubleClick && onCellDoubleClick(flatRowIdx, cellIdx + 1)}

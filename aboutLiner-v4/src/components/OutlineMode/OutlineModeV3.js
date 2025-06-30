@@ -6,6 +6,18 @@ import { getQuickfillOptions } from '../../models/quickfillLogic';
 /**
  * OutlineModeV3 - Working version with proper styling and robust keyboard navigation
  */
+
+// Utility: Generate a pastel color from a string (used for badge backgrounds)
+function stringToColor(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  // Pastel HSL: hue 0-360, sat 60%, light 85%
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 60%, 85%)`;
+}
+
 const OutlineModeV3 = ({
   sectionData,
   onDataChange,
@@ -257,14 +269,29 @@ const OutlineModeV3 = ({
   const insertRow = (sectionIdx, rowIdx) => {
     const section = sectionData.rowSections[sectionIdx];
     if (!section) return;
+    // Get column names from colSections if available, else from first row's cells
+    let colNames = [];
+    if (sectionData.colSections && sectionData.colSections.length > 0) {
+      // Flatten colSections to get names by colIdx
+      const colMap = {};
+      sectionData.colSections.forEach(colSection => {
+        (colSection.cols || []).forEach(col => {
+          colMap[col.idx] = col.name || '';
+        });
+      });
+      const numCols = section.rows[0]?.cells?.length || 0;
+      colNames = Array.from({ length: numCols }, (_, i) => colMap[i] || '');
+    } else if (section.rows[0]?.cells) {
+      colNames = section.rows[0].cells.map(cell => cell.name || '');
+    }
     const templateRow = section.rows[0] || { cells: [] };
     const newRow = {
       id: generateRowId(),
       name: '',
       value: '',
-      cells: templateRow.cells.map(cell => ({
+      cells: templateRow.cells.map((cell, i) => ({
         colSectionId: cell.colSectionId || '',
-        name: '',
+        name: colNames[i] || '',
         value: ''
       }))
     };
@@ -386,29 +413,119 @@ const OutlineModeV3 = ({
     return false;
   };
 
+  // Helper: update both the cell name and colSections for a column header
+  const updateColumnNameEverywhere = (sectionIdx, rowIdx, colIdx, newName) => {
+    // Update the cell name
+    const updatedSections = [...sectionData.rowSections];
+    updatedSections[sectionIdx] = {
+      ...updatedSections[sectionIdx],
+      rows: updatedSections[sectionIdx].rows.map((r, i) => {
+        if (i !== rowIdx) return r;
+        const updatedCells = [...r.cells];
+        updatedCells[colIdx - 1] = { ...updatedCells[colIdx - 1], name: newName };
+        return { ...r, cells: updatedCells };
+      })
+    };
+    // Update colSections
+    let updatedColSections = sectionData.colSections ? [...sectionData.colSections] : [];
+    const targetIdx = colIdx - 1;
+    let found = false;
+    updatedColSections = updatedColSections.map(colSection => {
+      if (!colSection.cols) return colSection;
+      const newCols = colSection.cols.map(col => {
+        if (col.idx === targetIdx) {
+          found = true;
+          return { ...col, name: newName };
+        }
+        return col;
+      });
+      return { ...colSection, cols: newCols };
+    });
+    // If not found, add to the last colSection (or create one)
+    if (!found) {
+      if (updatedColSections.length === 0) {
+        updatedColSections.push({
+          sectionId: `col-section-${targetIdx}`,
+          sectionName: '',
+          cols: [{ idx: targetIdx, name: newName, colIndex: colIdx }]
+        });
+      } else {
+        updatedColSections[updatedColSections.length - 1].cols.push({ idx: targetIdx, name: newName, colIndex: colIdx });
+      }
+    }
+    onDataChange({
+      ...sectionData,
+      rowSections: updatedSections,
+      colSections: updatedColSections
+    });
+  };
+
+  // Helper: update both the row name and the first column header in colSections
+  const updateRowNameEverywhere = (sectionIdx, rowIdx, newName) => {
+    // Update the row name
+    const updatedSections = [...sectionData.rowSections];
+    updatedSections[sectionIdx] = {
+      ...updatedSections[sectionIdx],
+      rows: updatedSections[sectionIdx].rows.map((r, i) => i === rowIdx ? { ...r, name: newName } : r)
+    };
+    // Update colSections for the first column (colIdx = 0)
+    let updatedColSections = sectionData.colSections ? [...sectionData.colSections] : [];
+    let found = false;
+    updatedColSections = updatedColSections.map(colSection => {
+      if (!colSection.cols) return colSection;
+      const newCols = colSection.cols.map(col => {
+        if (col.idx === 0) {
+          found = true;
+          return { ...col, name: newName };
+        }
+        return col;
+      });
+      return { ...colSection, cols: newCols };
+    });
+    if (!found) {
+      if (updatedColSections.length === 0) {
+        updatedColSections.push({
+          sectionId: `col-section-0`,
+          sectionName: '',
+          cols: [{ idx: 0, name: newName, colIndex: 1 }]
+        });
+      } else {
+        updatedColSections[updatedColSections.length - 1].cols.push({ idx: 0, name: newName, colIndex: 1 });
+      }
+    }
+    onDataChange({
+      ...sectionData,
+      rowSections: updatedSections,
+      colSections: updatedColSections
+    });
+  };
+
   return (
     <div className="outline-mode-v3">
       {sectionData.rowSections.map((section, sectionIdx) => (
+        // Only render section label if section.sectionName is non-empty
         <div key={section.sectionId} className="row-section">
-          <div className="section-label">
-            <input
-              type="text"
-              className="section-name-input"
-              value={section.sectionName}
-              onChange={(e) => {
-                const updatedSections = [...sectionData.rowSections];
-                updatedSections[sectionIdx] = {
-                  ...updatedSections[sectionIdx],
-                  sectionName: e.target.value
-                };
-                onDataChange({
-                  ...sectionData,
-                  rowSections: updatedSections
-                });
-              }}
-              placeholder="Section Name"
-            />
-          </div>
+          {section.sectionName && (
+            <div className="section-label">
+              <input
+                type="text"
+                className="section-name-input"
+                value={section.sectionName}
+                onChange={(e) => {
+                  const updatedSections = [...sectionData.rowSections];
+                  updatedSections[sectionIdx] = {
+                    ...updatedSections[sectionIdx],
+                    sectionName: e.target.value
+                  };
+                  onDataChange({
+                    ...sectionData,
+                    rowSections: updatedSections
+                  });
+                }}
+                placeholder="Section Name"
+              />
+            </div>
+          )}
           <ul>
             {section.rows.map((row, rowIdx) => {
               return (
@@ -425,11 +542,28 @@ const OutlineModeV3 = ({
                           ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-0-name`] = el)}
                           type="text"
                           placeholder="Row Title"
-                          value={getRowTitleHeader()}
-                          onChange={(e) => updateRowTitleHeader(e.target.value)}
-                          onFocus={() => {
+                          value={row.name ?? ''}
+                          onChange={e => {
+                            // Update the name for all rows in this section
+                            const updatedSections = [...sectionData.rowSections];
+                            updatedSections[sectionIdx] = {
+                              ...updatedSections[sectionIdx],
+                              rows: updatedSections[sectionIdx].rows.map(r => ({ ...r, name: e.target.value }))
+                            };
+                            onDataChange({
+                              ...sectionData,
+                              rowSections: updatedSections
+                            });
+                          }}
+                          onFocus={e => {
                             setFocusedCell({ sectionIdx, rowIdx, colIdx: 0 });
                             setFocusedNameField(`${sectionIdx}-${rowIdx}-0`);
+                            // If the field is empty, clear any selection and set caret to start (so placeholder is visible and typing replaces it)
+                            if (!e.target.value) {
+                              e.target.setSelectionRange(0, 0);
+                            } else {
+                              e.target.select();
+                            }
                           }}
                           onBlur={() => setFocusedNameField(null)}
                           onKeyDown={e => {
@@ -568,18 +702,48 @@ const OutlineModeV3 = ({
                           <li key={`sub-${cellIdx}`} className="sub-bullet">
                             <div className="sub-bullet-item">
                               <div className="bullet">-</div>
-                              <div className={`row-label ${focusedNameField === `${sectionIdx}-${rowIdx}-${colIdx}` ? 'name-input-focused' : ''}`}> 
+                              <div className={`row-label ${focusedNameField === `${sectionIdx}-${rowIdx}-${colIdx}` ? 'name-input-focused' : ''}`} 
+                                style={{
+                                  borderRadius: '6px',
+                                  padding: '2px 6px',
+                                  transition: 'background 0.2s'
+                                }}
+                              > 
                                 {includeHeaders && (
                                   <input
                                     className="label-input"
                                     ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-name`] = el)}
                                     type="text"
                                     placeholder={`Column ${colIdx}`}
-                                    value={getColumnHeader(colIdx)}
-                                    onChange={(e) => updateColumnHeader(colIdx, e.target.value)}
-                                    onFocus={() => {
+                                    value={cell.name && cell.name.trim() ? cell.name : ''}
+                                    onChange={e => {
+                                      // Only update this cell's name and also update colSections
+                                      const updatedSections = [...sectionData.rowSections];
+                                      updatedSections[sectionIdx] = {
+                                        ...updatedSections[sectionIdx],
+                                        rows: updatedSections[sectionIdx].rows.map((r, i) => {
+                                          if (i !== rowIdx) return r;
+                                          const updatedCells = [...r.cells];
+                                          updatedCells[colIdx - 1] = { ...updatedCells[colIdx - 1], name: e.target.value };
+                                          return { ...r, cells: updatedCells };
+                                        })
+                                      };
+                                      onDataChange({
+                                        ...sectionData,
+                                        rowSections: updatedSections
+                                      });
+                                      // Also update the column header in colSections
+                                      updateColumnHeader(colIdx, e.target.value);
+                                    }}
+                                    onFocus={e => {
                                       setFocusedCell({ sectionIdx, rowIdx, colIdx });
                                       setFocusedNameField(`${sectionIdx}-${rowIdx}-${colIdx}`);
+                                      // If value is empty, caret at start (so placeholder is visible and typing replaces it)
+                                      if (!(cell.name && cell.name.trim())) {
+                                        e.target.setSelectionRange(0, 0);
+                                      } else {
+                                        e.target.select();
+                                      }
                                     }}
                                     onBlur={() => setFocusedNameField(null)}
                                     onKeyDown={e => {
@@ -643,6 +807,12 @@ const OutlineModeV3 = ({
                                             return { ...r, cells: newCells };
                                           })
                                         }));
+                                        // Remove the column from colSections as well
+                                        let updatedColSections = sectionData.colSections ? [...sectionData.colSections] : [];
+                                        updatedColSections = updatedColSections.map(colSection => ({
+                                          ...colSection,
+                                          cols: colSection.cols ? colSection.cols.filter(col => col.idx !== colIdx - 1) : []
+                                        })).filter(colSection => colSection.cols.length > 0);
                                         // Insert a new row below
                                         const section = updatedSections[sectionIdx];
                                         const templateRow = section.rows[0] || { cells: [] };
@@ -666,7 +836,8 @@ const OutlineModeV3 = ({
                                         };
                                         onDataChange({
                                           ...sectionData,
-                                          rowSections: updatedSections
+                                          rowSections: updatedSections,
+                                          colSections: updatedColSections
                                         });
                                         setFocusBump(b => b + 1);
                                         // Focus the new row's first value input (delay polling to ensure refs are set)
@@ -689,18 +860,42 @@ const OutlineModeV3 = ({
                                         // Add a new sub-bullet (column) to all rows in all sections
                                         const maxCells = Math.max(...sectionData.rowSections.flatMap(section => section.rows.map(r => r.cells.length)));
                                         const newColIdx = maxCells + 1; // The new column index (1-based)
+                                        const defaultColName = `Column ${newColIdx}`;
+                                        // Update all rows with the new cell and set its name
                                         const updatedSections = sectionData.rowSections.map(section => ({
                                           ...section,
                                           rows: section.rows.map(r => {
                                             const newCells = [...r.cells];
                                             while (newCells.length < maxCells) newCells.push({ name: '', value: '' });
-                                            newCells.push({ name: '', value: '' });
+                                            newCells.push({ name: defaultColName, value: '' });
                                             return { ...r, cells: newCells };
                                           })
                                         }));
+                                        // Update colSections for the new column
+                                        let updatedColSections = sectionData.colSections ? [...sectionData.colSections] : [];
+                                        // Find the section that should own the new column (use the last section or create one)
+                                        let targetColSection = updatedColSections.length > 0 ? updatedColSections[updatedColSections.length - 1] : null;
+                                        if (!targetColSection) {
+                                          targetColSection = {
+                                            sectionId: `col-section-${newColIdx - 1}`,
+                                            sectionName: '',
+                                            cols: []
+                                          };
+                                          updatedColSections.push(targetColSection);
+                                        }
+                                        // Add the new column to the section
+                                        targetColSection.cols = targetColSection.cols || [];
+                                        targetColSection.cols.push({
+                                          idx: newColIdx - 1,
+                                          name: defaultColName,
+                                          colIndex: newColIdx
+                                        });
+                                        // Save the updated colSections
+                                        updatedColSections[updatedColSections.length - 1] = targetColSection;
                                         onDataChange({
                                           ...sectionData,
-                                          rowSections: updatedSections
+                                          rowSections: updatedSections,
+                                          colSections: updatedColSections
                                         });
                                         // Focus the new sub-bullet's value input (delay polling to ensure refs are set)
                                         setTimeout(() => {
@@ -864,40 +1059,52 @@ const OutlineModeV3 = ({
                                   />
                                 )}
                                 {/* Quickfill dropdown */}
-                                {quickfillState.open && quickfillState.rowIdx === rowIdx && quickfillState.colIdx === colIdx && quickfillState.options.length > 0 && (
-                                  <div className="quickfill-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 20, minWidth: 120 }}>
-                                    {quickfillState.options.map((option, idx) => (
-                                      <div
-                                        key={option}
-                                        className={`quickfill-option${quickfillState.selectedIndex === idx ? ' selected' : ''}`}
-                                        style={{
-                                          padding: '6px 12px',
-                                          background: quickfillState.selectedIndex === idx ? '#e3f2fd' : '#fff',
-                                          color: '#222',
-                                          fontSize: '1em',
-                                          cursor: 'pointer'
-                                        }}
-                                        onMouseDown={e => {
-                                          e.preventDefault();
-                                          updateCell(quickfillState.sectionIdx, rowIdx, colIdx, 'value', option);
-                                          closeQuickfill();
-                                          setTimeout(() => {
-                                            const key = `${quickfillState.sectionIdx}-${rowIdx}-${colIdx}-value`;
-                                            const input = inputRefs.current[key];
-                                            if (input) input.focus();
-                                          }, 0);
-                                        }}
-                                        onMouseEnter={() => setQuickfillState(state => ({ ...state, selectedIndex: idx }))}
-                                      >
-                                        {option}
-                                      </div>
-                                    ))}
-                                  </div>
+                                {quickfillState.open &&
+                                  quickfillState.sectionIdx === sectionIdx &&
+                                  quickfillState.rowIdx === rowIdx &&
+                                  quickfillState.colIdx === colIdx &&
+                                  quickfillState.options.length > 0 && (
+                                    <div className="quickfill-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 20, minWidth: 120 }}>
+                                      {quickfillState.options.map((option, idx) => (
+                                        <div
+                                          key={option}
+                                          className={`quickfill-option${quickfillState.selectedIndex === idx ? ' selected' : ''}`}
+                                          style={{
+                                            padding: '6px 12px',
+                                            background: quickfillState.selectedIndex === idx ? '#e3f2fd' : '#fff',
+                                            color: '#222',
+                                            fontSize: '1em',
+                                            cursor: 'pointer'
+                                          }}
+                                          onMouseDown={e => {
+                                            e.preventDefault();
+                                            updateCell(quickfillState.sectionIdx, rowIdx, colIdx, 'value', option);
+                                            closeQuickfill();
+                                            setTimeout(() => {
+                                              const key = `${quickfillState.sectionIdx}-${rowIdx}-${colIdx}-value`;
+                                              const input = inputRefs.current[key];
+                                              if (input) input.focus();
+                                            }, 0);
+                                          }}
+                                          onMouseEnter={() => setQuickfillState(state => ({ ...state, selectedIndex: idx }))}
+                                        >
+                                          {option}
+                                        </div>
+                                      ))}
+                                    </div>
                                 )}
                                 {includeHeaders && (
                                   <span
-                                    className="name-badge"
+                                    className={`name-badge col-badge-${colIdx}`}
                                     title={getColumnHeader(colIdx) || "Cell bullet"}
+                                    style={
+                                      focusedNameField === `${sectionIdx}-${rowIdx}-${colIdx}`
+                                        ? undefined
+                                        : {
+                                            color: '#333',
+                                            transition: 'background 0.2s'
+                                          }
+                                    }
                                     onClick={() => {
                                       const input = inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-name`];
                                       if (input) input.focus();

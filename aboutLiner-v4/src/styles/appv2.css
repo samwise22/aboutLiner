@@ -322,7 +322,7 @@
 
 /* Custom styles for the 33/66 layout */
 .outline-panel {
-  width: 33%;
+  width: 25%;
   padding: 16px;
   padding-left: 24px;
   overflow-y: auto; /* Keep the outer container scrollable */

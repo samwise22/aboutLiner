@@ -14,15 +14,16 @@ const TableView = ({
   mdRender,
   onCellClick,
   onCellDoubleClick,
-  onCopyTable
+  onCopyTable,
+  focusedCell // <-- controlled focus from parent
 }) => {
   // State for UI interactions
   const [hoveredCol, setHoveredCol] = useState(null);
-  const [focusedCell, setFocusedCell] = useState({ row: null, col: null });
-  
+  // Remove local focus state
+  // const [focusedCell, setFocusedCell] = useState({ row: null, col: null });
+
   // Handle cell click
   const handleCellClick = (rowIdx, colIdx) => {
-    setFocusedCell({ row: rowIdx, col: colIdx });
     if (onCellClick) onCellClick(rowIdx, colIdx);
   };
   
@@ -41,6 +42,21 @@ const TableView = ({
     setHoveredCol(null);
   };
   
+  // Only render row section headers if sectionName is non-empty and colCount is defined
+  const renderRowSectionHeader = (section, colCount) => section.sectionName ? (
+    <tr className="row-section-header">
+      <th colSpan={(colCount || 0) + 1}>{section.sectionName}</th>
+    </tr>
+  ) : null;
+
+  // Only render column section headers if sectionName is non-empty and colCount is defined
+  const renderColSectionHeader = (colSection, colCount) => colSection.sectionName ? (
+    <tr className="col-section-header">
+      <th></th>
+      <th colSpan={colCount || 0}>{colSection.sectionName}</th>
+    </tr>
+  ) : null;
+  
   return (
     <div className="table-view-container">
       {displayMode === 'mergedHeader' ? (
@@ -51,8 +67,8 @@ const TableView = ({
           hoveredCol={hoveredCol}
           onCellClick={handleCellClick}
           onCellDoubleClick={handleCellDoubleClick}
-          onCellHover={handleColumnHover}
-          onCellLeave={handleColumnLeave}
+          onCellHover={setHoveredCol}
+          onCellLeave={() => setHoveredCol(null)}
           mdRender={mdRender}
         />
       ) : displayMode === 'breakRow' ? (
@@ -63,8 +79,8 @@ const TableView = ({
           hoveredCol={hoveredCol}
           onCellClick={handleCellClick}
           onCellDoubleClick={handleCellDoubleClick}
-          onCellHover={handleColumnHover}
-          onCellLeave={handleColumnLeave}
+          onCellHover={setHoveredCol}
+          onCellLeave={() => setHoveredCol(null)}
           mdRender={mdRender}
         />
       ) : (

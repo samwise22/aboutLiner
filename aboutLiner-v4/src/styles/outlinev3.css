@@ -194,13 +194,13 @@
   padding: 2px 8px !important; /* Standardized padding for all label-input states */
   font-size: 14px;
   background: transparent;
-  width: 0;
-  min-width: 0;
-  overflow: hidden;
-  opacity: 0;
+  width: auto;
+  min-width: 40px;
+  overflow: visible;
+  opacity: 1;
   transition: all 0.25s ease;
   position: absolute;
-  left: 14px; /* Position where the badge is */
+  left: 14px; /* Position where the bullet is */
   top: 50%; /* Ensure vertical centering */
   transform: translateY(-50%); /* Vertical alignment with value field */
   z-index: 5;
@@ -210,15 +210,6 @@
   align-items: center;
   height: 22px; /* Match the height of value-input */
   box-sizing: border-box !important; /* Ensure consistent box model */
-}
-
-/* Special positioning for sub-bullet label inputs */
-.outline-mode-v3 .sub-bullet-item .label-input {
-  left: 10px !important; /* Position at the same place as the bullet - updated for consistency */
-  margin-left: 0 !important; /* Ensure no additional margins cause misalignment */
-  position: absolute !important; /* Make absolutely positioned */
-  transform: translateY(-50%) !important; /* Vertical centering */
-  top: 50% !important; /* Vertical centering */
 }
 
 .outline-mode-v3 .label-input:focus {
@@ -619,6 +610,41 @@
   justify-content: center;
 }
 
+/* --- FIX: Name badge expands to pill with text on focus --- */
+.outline-mode-v3 .name-badge {
+  transition: all 0.25s ease;
+  opacity: 0.9;
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  box-sizing: border-box;
+  text-indent: -9999px;
+  overflow: hidden;
+}
+.outline-mode-v3 .name-input-focused .name-badge,
+.outline-mode-v3 .label-input:focus ~ .name-badge {
+  width: auto !important;
+  min-width: 80px !important;
+  max-width: 150px !important;
+  padding: 2px 12px !important;
+  border-radius: 12px !important;
+  text-indent: 0 !important;
+  opacity: 1 !important;
+  overflow: visible !important;
+  background: #fff !important;
+  color: #333 !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
 /* Special positioning for sub-bullets to ensure it's the only visible element when not focused */
 .outline-mode-v3 .sub-bullet-item .name-badge {
   left: 10px; /* Moved closer to the left edge for more compact layout */
@@ -830,6 +856,23 @@
   max-width: 100px !important; /* Fixed max-width */
 }
 
+/* --- FIX: Ensure name field input is always clickable and not covered by badge --- */
+.outline-mode-v3 .row-label .label-input,
+.outline-mode-v3 .sub-bullet-item .label-input {
+  z-index: 30 !important;
+  pointer-events: auto !important;
+}
+.outline-mode-v3 .row-label .name-badge,
+.outline-mode-v3 .sub-bullet-item .name-badge {
+  z-index: 10 !important;
+}
+/* When input is focused, hide the badge and ensure input is on top */
+.outline-mode-v3 .name-input-focused .name-badge {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 /* CRITICAL FIXES - THESE MUST BE THE LAST RULES IN THE FILE */
 
 /* Text truncation fixes - ensure text always truncates at the END with ellipsis */
@@ -983,4 +1026,44 @@
   display: flex;
   flex-direction: row;
   align-items: center;
+}
+
+/* Pastel color palette for up to 8 columns */
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-1 { background: #c7d6f3; color: #2a3550; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-2 { background: #c9e7c0; color: #2d4a2a; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-3 { background: #f7e0b8; color: #5a4320; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-4 { background: #e2c9e7; color: #4a2d4a; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-5 { background: #b8e3e7; color: #23484a; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-6 { background: #f3c7c7; color: #4a2323; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-7 { background: #f3f0c7; color: #4a4923; }
+.outline-mode-v3 .sub-bullet-item .name-badge.col-badge-8 { background: #b8e7d6; color: #234a3a; }
+/* The above colors are soft, light pastels with gentle contrast for up to 8 columns. */
+
+.outline-mode-v3 .label-input {
+  opacity: 0.01 !important;
+  width: 1px !important;
+  min-width: 1px !important;
+  max-width: 100px !important;
+  pointer-events: auto !important;
+  z-index: 20 !important;
+  position: absolute !important;
+  left: 14px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-sizing: border-box !important;
+}
+.outline-mode-v3 .label-input:focus,
+.outline-mode-v3 .name-input-focused .label-input {
+  opacity: 1 !important;
+  width: 100px !important;
+  min-width: 100px !important;
+  max-width: 100px !important;
+  z-index: 30 !important;
+  background: #fff !important;
+  border: 1px solid #aaa !important;
+  padding: 2px 8px !important;
 }

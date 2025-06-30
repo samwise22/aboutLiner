@@ -13,61 +13,18 @@ import './styles/outlinev3.css';
 import './styles/copyModal.css';
 import './styles/app-compatibility.css';
 
-// Sample data from original App.js
+// Sample data from original App.js (DISABLED for empty start)
+// const sampleData = [ ... ];
 const sampleData = [
   [
-    { id: 'ZEK1', name: 'Row Title', value: 'Row_SecA_Row 1', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
-    { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 1 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 1 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 1 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 1 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-  ],
-  [
-    { id: 'ZEK2', name: 'Row Title', value: 'Row_SecA_Row 2', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
-    { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 2 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 2 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 2 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 2 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-  ],
-  [
-    { id: 'ZEK3', name: 'Row Title', value: 'Row_SecB_Row 3', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
-    { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 3 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 3 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 3 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 3 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-  ],
-  [
-    { id: 'ZEK4', name: 'Row Title', value: 'Row_SecB_Row 4', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
-    { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 4 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 4 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-    { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 4 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 4 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+    { id: '', name: '', value: '' },
+    { name: '', value: '' }
   ]
 ];
 
-// Example text for import
-const sampleText = [
-  '- Row_SecA ## ZEK1 | Row Title::Row_SecA_Row 1',
-  '  - Col_SecA ## Col_SecA_Col 1:: Row_SecA_Row 1 _ Col_SecA_Col 1',
-  '  - Col_SecA ## Col_SecA_Col 2:: Row_SecA_Row 1 _ Col_SecA_Col 2',
-  '  - Col_SecB ## Col_SecB_Col 3:: Row_SecA_Row 1 _ Col_SecB_Col 3',
-  '  - Col_SecB ## Col_SecB_Col 4:: Row_SecA_Row 1 _ Col_SecB_Col 4',
-  '- Row_SecA ## ZEK2 | Row Title::Row_SecA_Row 2',
-  '  - Col_SecA ## Col_SecA_Col 1:: Row_SecA_Row 2 _ Col_SecA_Col 1',
-  '  - Col_SecA ## Col_SecA_Col 2:: Row_SecA_Row 2 _ Col_SecA_Col 2',
-  '  - Col_SecB ## Col_SecB_Col 3:: Row_SecA_Row 2 _ Col_SecB_Col 3',
-  '  - Col_SecB ## Col_SecB_Col 4:: Row_SecA_Row 2 _ Col_SecB_Col 4',
-  '- Row_SecB ## ZEK3 | Row Title::Row_SecB_Row 3',
-  '  - Col_SecA ## Col_SecA_Col 1:: Row_SecB_Row 3 _ Col_SecA_Col 1',
-  '  - Col_SecA ## Col_SecA_Col 2:: Row_SecB_Row 3 _ Col_SecA_Col 2',
-  '  - Col_SecB ## Col_SecB_Col 3:: Row_SecB_Row 3 _ Col_SecB_Col 3',
-  '  - Col_SecB ## Col_SecB_Col 4:: Row_SecB_Row 3 _ Col_SecB_Col 4',
-  '- Row_SecB ## ZEK4 | Row Title::Row_SecB_Row 4',
-  '  - Col_SecA ## Col_SecA_Col 1:: Row_SecB_Row 4 _ Col_SecA_Col 1',
-  '  - Col_SecA ## Col_SecA_Col 2:: Row_SecB_Row 4 _ Col_SecA_Col 2',
-  '  - Col_SecB ## Col_SecB_Col 3:: Row_SecB_Row 4 _ Col_SecB_Col 3',
-  '  - Col_SecB ## Col_SecB_Col 4:: Row_SecB_Row 4 _ Col_SecB_Col 4'
-].join('\n');
+// Example text for import (DISABLED for empty start)
+// const sampleText = [ ... ];
+const sampleText = '';
 
 /**
  * AppV2 - New section-based app component
@@ -87,7 +44,7 @@ const AppV2 = () => {
   const [showOutlineMode, setShowOutlineMode] = useState(true);
   const [showReorderMode, setShowReorderMode] = useState(false);
   const [tableMode, setTableMode] = useState('merged'); // 'merged', 'break', 'simple'
-  const [importText, setImportText] = useState(sampleText);
+  const [importText, setImportText] = useState('');
   const [includeHeaders, setIncludeHeaders] = useState(true);
   const [includeIds, setIncludeIds] = useState(true);
   const [includeSections, setIncludeSections] = useState(true);
@@ -97,8 +54,43 @@ const AppV2 = () => {
   const lastKeyPressTime = useRef(0);
   const keyPressCount = useRef(0);
   
+  // Shared focus state (outline format)
+  const [outlineFocusedCell, setOutlineFocusedCell] = useState({ sectionIdx: null, rowIdx: null, colIdx: null });
+
+  // Helper: map outline focus to table focus
+  function outlineToTableCell(sectionData, outlineCell) {
+    if (!sectionData || outlineCell.sectionIdx == null || outlineCell.rowIdx == null || outlineCell.colIdx == null) return { row: null, col: null };
+    // Flatten rows
+    let flatRow = 0;
+    for (let s = 0; s < outlineCell.sectionIdx; ++s) {
+      flatRow += sectionData.rowSections[s]?.rows.length || 0;
+    }
+    flatRow += outlineCell.rowIdx;
+    // Table col: 0 = row title, 1+ = data columns
+    return { row: flatRow, col: outlineCell.colIdx };
+  }
+  // Helper: map table cell to outline focus
+  function tableToOutlineCell(sectionData, tableCell) {
+    if (!sectionData || tableCell.row == null || tableCell.col == null) return { sectionIdx: null, rowIdx: null, colIdx: null };
+    let row = tableCell.row;
+    let sectionIdx = 0;
+    let rowIdx = row;
+    for (let s = 0; s < sectionData.rowSections.length; ++s) {
+      const len = sectionData.rowSections[s].rows.length;
+      if (row < len) {
+        sectionIdx = s;
+        rowIdx = row;
+        break;
+      }
+      row -= len;
+    }
+    return { sectionIdx, rowIdx: row, colIdx: tableCell.col };
+  }
+
   // Handle cell click
-  const handleCellClick = (rowIndex, colIndex) => {
+  const handleCellClick = (rowIndex, colIndex, opts = {}) => {
+    const outlineCell = tableToOutlineCell(sectionData, { row: rowIndex, col: colIndex });
+    setOutlineFocusedCell({ ...outlineCell, focusName: opts.focusName });
     console.log(`Cell clicked: row ${rowIndex}, col ${colIndex}`);
     // In the full implementation, this would focus the appropriate input
   };
@@ -292,7 +284,7 @@ const AppV2 = () => {
         className={`outline-panel${showTextMode ? ' export-mode' : ''}${showReorderMode ? ' reorder-mode' : ''}`}
         style={{
           position: 'relative',
-          width: '33%',
+          width: '25%', // Changed from 33% to 25%
           overflowY: 'auto',
           overflowX: 'hidden',
           paddingTop: '0',
@@ -393,9 +385,11 @@ const AppV2 = () => {
             <OutlineModeV3
               sectionData={sectionData}
               onDataChange={setSectionData}
-              includeIds={false} /* Always hide IDs in outline view */
+              includeIds={false}
               includeHeaders={includeHeaders}
               includeSections={includeSections}
+              focusedCell={outlineFocusedCell}
+              setFocusedCell={setOutlineFocusedCell}
             />
           </div>
         ) : showReorderMode ? (
@@ -513,6 +507,7 @@ const AppV2 = () => {
           onCellClick={handleCellClick}
           onCellDoubleClick={handleCellDoubleClick}
           onCopyTable={handleCopyTable}
+          focusedCell={outlineToTableCell(sectionData, outlineFocusedCell)}
         />
       </div>
       
