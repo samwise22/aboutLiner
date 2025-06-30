@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import '../../styles/outlinev3.css';
 import { generateRowId } from '../../models/SectionModel';
+import { getQuickfillOptions } from '../../models/quickfillLogic';
 
 /**
  * OutlineModeV3 - Working version with proper styling and robust keyboard navigation
@@ -16,9 +17,13 @@ const OutlineModeV3 = ({
   const [focusedCell, setFocusedCell] = useState({ sectionIdx: null, rowIdx: null, colIdx: null });
   const [focusedNameField, setFocusedNameField] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null); // { type: 'row'|'col', sectionIdx, rowIdx, colIdx, timestamp }
+  const [quickfillState, setQuickfillState] = useState({ open: false, sectionIdx: null, rowIdx: null, colIdx: null, selectedIndex: 0, options: [] }); // Quickfill state
   // Input refs for focus management
   const inputRefs = useRef({});
   const deleteTimeoutRef = useRef(null);
+
+  // Dummy state to force re-render for focus timing
+  const [focusBump, setFocusBump] = useState(0);
 
   // Keyboard navigation handler (up/down arrows for name/value fields)
   const handleNavigation = (direction, fieldType, opts = {}) => {
@@ -276,11 +281,21 @@ const OutlineModeV3 = ({
       ...sectionData,
       rowSections: updatedSections
     });
-    setTimeout(() => {
-      const key = `${sectionIdx}-${rowIdx + 1}-0-value`;
+    setFocusBump(b => b + 1); // force re-render for ref timing
+    // Robust focus: poll for the new input and focus as soon as it appears
+    const key = `${sectionIdx}-${rowIdx + 1}-0-value`;
+    let attempts = 0;
+    const maxAttempts = 20;
+    const pollFocus = () => {
       const input = inputRefs.current[key];
-      if (input) input.focus();
-    }, 0);
+      if (input) {
+        input.focus();
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(pollFocus, 25);
+      }
+    };
+    pollFocus();
   };
 
   // Helper: insert a new column at colIdx+1 for all rows
@@ -297,12 +312,21 @@ const OutlineModeV3 = ({
       ...sectionData,
       rowSections: updatedSections
     });
-    setTimeout(() => {
-      // Focus the new column's value field in the same row and section
-      const key = `${sectionIdx}-${rowIdx}-${colIdx + 1}-value`;
+    setFocusBump(b => b + 1); // force re-render for ref timing
+    // Robust focus: poll for the new input and focus as soon as it appears
+    const key = `${sectionIdx}-${rowIdx}-${colIdx + 1}-value`;
+    let attempts = 0;
+    const maxAttempts = 20;
+    const pollFocus = () => {
       const input = inputRefs.current[key];
-      if (input) input.focus();
-    }, 0);
+      if (input) {
+        input.focus();
+      } else if (attempts < maxAttempts) {
+        attempts++;
+        setTimeout(pollFocus, 25);
+      }
+    };
+    pollFocus();
   };
 
   // Helper: clear pending delete
@@ -312,6 +336,54 @@ const OutlineModeV3 = ({
       clearTimeout(deleteTimeoutRef.current);
       deleteTimeoutRef.current = null;
     }
+  };
+
+  // Helper to open quickfill for a cell
+  const openQuickfill = (sectionIdx, rowIdx, colIdx, options) => {
+    setQuickfillState({ open: true, sectionIdx, rowIdx, colIdx, selectedIndex: 0, options });
+  };
+  // Helper to close quickfill
+  const closeQuickfill = () => {
+    setQuickfillState({ open: false, sectionIdx: null, rowIdx: null, colIdx: null, selectedIndex: 0, options: [] });
+  };
+  // Handle quickfill key events
+  const handleQuickfillKeyDown = (e, rowIdx, colIdx) => {
+    if (!quickfillState.open || quickfillState.rowIdx !== rowIdx || quickfillState.colIdx !== colIdx) return false;
+    const options = quickfillState.options;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setQuickfillState(state => ({ ...state, selectedIndex: (state.selectedIndex + 1) % options.length }));
+      return true;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setQuickfillState(state => ({ ...state, selectedIndex: (state.selectedIndex - 1 + options.length) % options.length }));
+      return true;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (options.length > 0) {
+        updateCell(quickfillState.sectionIdx, rowIdx, colIdx, 'value', options[quickfillState.selectedIndex]);
+        closeQuickfill();
+        setTimeout(() => {
+          const key = `${quickfillState.sectionIdx}-${rowIdx}-${colIdx}-value`;
+          const input = inputRefs.current[key];
+          if (input) input.focus();
+        }, 0);
+      }
+      return true;
+    }
+    if (e.key === 'Escape' || e.key === 'ArrowLeft') {
+      e.preventDefault();
+      closeQuickfill();
+      setTimeout(() => {
+        const key = `${quickfillState.sectionIdx}-${rowIdx}-${colIdx}-value`;
+        const input = inputRefs.current[key];
+        if (input) input.focus();
+      }, 0);
+      return true;
+    }
+    return false;
   };
 
   return (
@@ -326,7 +398,7 @@ const OutlineModeV3 = ({
               onChange={(e) => {
                 const updatedSections = [...sectionData.rowSections];
                 updatedSections[sectionIdx] = {
-                  ...section,
+                  ...updatedSections[sectionIdx],
                   sectionName: e.target.value
                 };
                 onDataChange({
@@ -403,18 +475,19 @@ const OutlineModeV3 = ({
                           } else if (
                             e.key === 'Backspace' && caretAtStart && !e.target.value
                           ) {
-                            const row = sectionData.rowSections[sectionIdx].rows[rowIdx];
-                            const hasSubBulletsWithText = row.cells && row.cells.some(cell => cell.value && cell.value.trim() !== '');
+                            // Use colIdx = 0 for all logic here
                             if (sectionData.rowSections[sectionIdx].rows.length > 1) {
+                              const row = sectionData.rowSections[sectionIdx].rows[rowIdx];
+                              const hasSubBulletsWithText = row.cells && row.cells.some(cell => cell.value && cell.value.trim() !== '');
                               if (hasSubBulletsWithText) {
-                                // Two-step delete
+                                // Two-step delete for row
                                 if (
                                   pendingDelete &&
                                   pendingDelete.type === 'row' &&
                                   pendingDelete.sectionIdx === sectionIdx &&
                                   pendingDelete.rowIdx === rowIdx
                                 ) {
-                                  // Second backspace: delete
+                                  // Second backspace: delete row
                                   clearPendingDelete();
                                   const updatedSections = sectionData.rowSections.map((section, sIdx) => {
                                     if (sIdx !== sectionIdx) return section;
@@ -434,7 +507,7 @@ const OutlineModeV3 = ({
                                     if (input) input.focus();
                                   }, 0);
                                 } else {
-                                  // First backspace: highlight
+                                  // First backspace: highlight row
                                   setPendingDelete({ type: 'row', sectionIdx, rowIdx, timestamp: Date.now() });
                                   if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
                                   deleteTimeoutRef.current = setTimeout(() => {
@@ -443,7 +516,7 @@ const OutlineModeV3 = ({
                                 }
                                 e.preventDefault();
                               } else {
-                                // One-step delete (no sub-bullets with text)
+                                // One-step delete for row
                                 const updatedSections = sectionData.rowSections.map((section, sIdx) => {
                                   if (sIdx !== sectionIdx) return section;
                                   return {
@@ -540,43 +613,37 @@ const OutlineModeV3 = ({
                                   onKeyDown={e => {
                                     const caretAtStart = e.target.selectionStart === 0;
                                     const caretAtEnd = e.target.selectionStart === e.target.value.length;
-                                    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+                                    const options = getQuickfillOptions({ sectionData, colIdx, rowIdx, getColumnHeader });
+                                    if (quickfillState.open && quickfillState.rowIdx === rowIdx && quickfillState.colIdx === colIdx) {
+                                      if (handleQuickfillKeyDown(e, rowIdx, colIdx)) return;
+                                    } else if (
+                                      e.key === 'ArrowRight' && caretAtEnd && !e.target.value && options.length > 0 &&
+                                      focusedCell.sectionIdx === sectionIdx && focusedCell.rowIdx === rowIdx && focusedCell.colIdx === colIdx
+                                    ) {
+                                      e.preventDefault();
+                                      openQuickfill(sectionIdx, rowIdx, colIdx, options);
+                                    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                                       e.preventDefault();
                                       handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
-                                    } else if (
-                                      e.key === 'ArrowLeft' && (caretAtStart || e.metaKey || e.ctrlKey)
-                                    ) {
+                                    } else if (e.key === 'ArrowLeft' && (caretAtStart || e.metaKey || e.ctrlKey)) {
                                       e.preventDefault();
                                       moveNameValueFocus(sectionIdx, rowIdx, colIdx, 'value', 'left');
-                                    } else if (
-                                      e.key === 'Enter' && caretAtEnd
-                                    ) {
-                                      // If all sub-bullets in this column are blank, convert to new row at this position and remove the column
-                                      let allBlank = true;
-                                      for (let s = 0; s < sectionData.rowSections.length; s++) {
-                                        for (let r = 0; r < sectionData.rowSections[s].rows.length; r++) {
-                                          const otherRow = sectionData.rowSections[s].rows[r];
-                                          if (otherRow.cells && otherRow.cells[colIdx - 1] && otherRow.cells[colIdx - 1].value && otherRow.cells[colIdx - 1].value.trim() !== '') {
-                                            allBlank = false;
-                                            break;
-                                          }
-                                        }
-                                        if (!allBlank) break;
-                                      }
-                                      if (allBlank) {
-                                        // Remove the column from all rows and insert a new row
-                                        const updatedSections = sectionData.rowSections.map((section) => {
-                                          const updatedRows = section.rows.map((row) => {
-                                            if (row.cells && row.cells.length >= colIdx) {
-                                              const newCells = [...row.cells];
-                                              newCells.splice(colIdx - 1, 1);
-                                              return { ...row, cells: newCells };
-                                            }
-                                            return row;
-                                          });
-                                          return { ...section, rows: updatedRows };
-                                        });
-                                        // Insert a new row at the current position
+                                    } else if (e.key === 'Enter' && caretAtEnd) {
+                                      e.preventDefault();
+                                      // --- Modernized Enter key logic for sub-bullets ---
+                                      // If all sub-bullets in this column are empty, remove the column and insert a new row below
+                                      const allColEmpty = sectionData.rowSections.every(sec => sec.rows.every(r => !r.cells[colIdx-1] || !r.cells[colIdx-1].value || r.cells[colIdx-1].value.trim() === ''));
+                                      if (allColEmpty) {
+                                        // Remove the column for all rows in all sections
+                                        const updatedSections = sectionData.rowSections.map(section => ({
+                                          ...section,
+                                          rows: section.rows.map(r => {
+                                            const newCells = [...r.cells];
+                                            newCells.splice(colIdx - 1, 1);
+                                            return { ...r, cells: newCells };
+                                          })
+                                        }));
+                                        // Insert a new row below
                                         const section = updatedSections[sectionIdx];
                                         const templateRow = section.rows[0] || { cells: [] };
                                         const newRow = {
@@ -589,93 +656,244 @@ const OutlineModeV3 = ({
                                             value: ''
                                           }))
                                         };
-                                        section.rows.splice(rowIdx + 1, 0, newRow);
+                                        updatedSections[sectionIdx] = {
+                                          ...section,
+                                          rows: [
+                                            ...section.rows.slice(0, rowIdx + 1),
+                                            newRow,
+                                            ...section.rows.slice(rowIdx + 1)
+                                          ]
+                                        };
                                         onDataChange({
                                           ...sectionData,
                                           rowSections: updatedSections
                                         });
+                                        setFocusBump(b => b + 1);
+                                        // Focus the new row's first value input (delay polling to ensure refs are set)
                                         setTimeout(() => {
-                                          const key = `${sectionIdx}-${rowIdx + 1}-0-value`;
-                                          const input = inputRefs.current[key];
-                                          if (input) input.focus();
+                                          let attempts = 0;
+                                          const maxAttempts = 20;
+                                          const pollFocus = () => {
+                                            const key = `${sectionIdx}-${rowIdx + 1}-0-value`;
+                                            const input = inputRefs.current[key];
+                                            if (input) {
+                                              input.focus();
+                                            } else if (attempts < maxAttempts) {
+                                              attempts++;
+                                              setTimeout(pollFocus, 25);
+                                            }
+                                          };
+                                          pollFocus();
                                         }, 0);
-                                        e.preventDefault();
                                       } else {
-                                        // Always add a new column after this one
-                                        e.preventDefault();
-                                        insertColumn(colIdx, sectionIdx, rowIdx);
+                                        // Add a new sub-bullet (column) to all rows in all sections
+                                        const maxCells = Math.max(...sectionData.rowSections.flatMap(section => section.rows.map(r => r.cells.length)));
+                                        const newColIdx = maxCells + 1; // The new column index (1-based)
+                                        const updatedSections = sectionData.rowSections.map(section => ({
+                                          ...section,
+                                          rows: section.rows.map(r => {
+                                            const newCells = [...r.cells];
+                                            while (newCells.length < maxCells) newCells.push({ name: '', value: '' });
+                                            newCells.push({ name: '', value: '' });
+                                            return { ...r, cells: newCells };
+                                          })
+                                        }));
+                                        onDataChange({
+                                          ...sectionData,
+                                          rowSections: updatedSections
+                                        });
+                                        // Focus the new sub-bullet's value input (delay polling to ensure refs are set)
+                                        setTimeout(() => {
+                                          let attempts = 0;
+                                          const maxAttempts = 20;
+                                          const pollFocus = () => {
+                                            const key = `${sectionIdx}-${rowIdx}-${newColIdx}-value`;
+                                            const input = inputRefs.current[key];
+                                            if (input) {
+                                              input.focus();
+                                            } else if (attempts < maxAttempts) {
+                                              attempts++;
+                                              setTimeout(pollFocus, 25);
+                                            }
+                                          };
+                                          pollFocus();
+                                        }, 0);
                                       }
-                                    } else if (
-                                      e.key === 'Backspace' && caretAtStart && !e.target.value
-                                    ) {
-                                      // Check if all sub-bullets at this colIdx are blank (including this one)
-                                      let allBlank = true;
-                                      for (let s = 0; s < sectionData.rowSections.length; s++) {
-                                        for (let r = 0; r < sectionData.rowSections[s].rows.length; r++) {
-                                          const otherRow = sectionData.rowSections[s].rows[r];
-                                          if (otherRow.cells && otherRow.cells[colIdx - 1] && otherRow.cells[colIdx - 1].value && otherRow.cells[colIdx - 1].value.trim() !== '') {
-                                            allBlank = false;
-                                            break;
+                                    } else if (e.key === 'Backspace' && caretAtStart && !e.target.value) {
+                                      if (colIdx === 0) {
+                                        // Level 1: row delete logic (as before)
+                                        const row = sectionData.rowSections[sectionIdx].rows[rowIdx];
+                                        const hasSubBulletsWithText = row.cells && row.cells.some(cell => cell.value && cell.value.trim() !== '');
+                                        if (sectionData.rowSections[sectionIdx].rows.length > 1) {
+                                          if (hasSubBulletsWithText) {
+                                            // Two-step delete for row
+                                            if (
+                                              pendingDelete &&
+                                              pendingDelete.type === 'row' &&
+                                              pendingDelete.sectionIdx === sectionIdx &&
+                                              pendingDelete.rowIdx === rowIdx
+                                            ) {
+                                              // Second backspace: delete row
+                                              clearPendingDelete();
+                                              const updatedSections = sectionData.rowSections.map((section, sIdx) => {
+                                                if (sIdx !== sectionIdx) return section;
+                                                return {
+                                                  ...section,
+                                                  rows: section.rows.filter((_, rIdx) => rIdx !== rowIdx)
+                                                };
+                                              });
+                                              onDataChange({
+                                                ...sectionData,
+                                                rowSections: updatedSections
+                                              });
+                                              setTimeout(() => {
+                                                const prevIdx = rowIdx > 0 ? rowIdx - 1 : 0;
+                                                const key = `${sectionIdx}-${prevIdx}-0-value`;
+                                                const input = inputRefs.current[key];
+                                                if (input) input.focus();
+                                              }, 0);
+                                            } else {
+                                              // First backspace: highlight row
+                                              setPendingDelete({ type: 'row', sectionIdx, rowIdx, timestamp: Date.now() });
+                                              if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+                                              deleteTimeoutRef.current = setTimeout(() => {
+                                                setPendingDelete(null);
+                                              }, 3000);
+                                            }
+                                            e.preventDefault();
+                                          } else {
+                                            // One-step delete for row
+                                            const updatedSections = sectionData.rowSections.map((section, sIdx) => {
+                                              if (sIdx !== sectionIdx) return section;
+                                              return {
+                                                ...section,
+                                                rows: section.rows.filter((_, rIdx) => rIdx !== rowIdx)
+                                              };
+                                            });
+                                            onDataChange({
+                                              ...sectionData,
+                                              rowSections: updatedSections
+                                            });
+                                            setTimeout(() => {
+                                              const prevIdx = rowIdx > 0 ? rowIdx - 1 : 0;
+                                              const key = `${sectionIdx}-${prevIdx}-0-value`;
+                                              const input = inputRefs.current[key];
+                                              if (input) input.focus();
+                                            }, 0);
+                                            e.preventDefault();
                                           }
                                         }
-                                        if (!allBlank) break;
-                                      }
-                                      if (allBlank) {
-                                        // One-step delete: remove the entire column from all rows
-                                        const updatedSections = sectionData.rowSections.map((section) => {
-                                          const updatedRows = section.rows.map((row) => {
-                                            if (row.cells && row.cells.length >= colIdx) {
-                                              const newCells = [...row.cells];
-                                              newCells.splice(colIdx - 1, 1);
-                                              return { ...row, cells: newCells };
-                                            }
-                                            return row;
-                                          });
-                                          return { ...section, rows: updatedRows };
-                                        });
-                                        onDataChange({
-                                          ...sectionData,
-                                          rowSections: updatedSections
-                                        });
-                                        e.preventDefault();
-                                      } else {
-                                        // Two-step delete: highlight first, delete all highlighted on second
-                                        if (
-                                          pendingDelete &&
-                                          pendingDelete.type === 'col' &&
-                                          pendingDelete.colIdx === colIdx
-                                        ) {
-                                          // Second backspace: remove the entire column from all rows
-                                          clearPendingDelete();
-                                          const updatedSections = sectionData.rowSections.map((section) => {
-                                            const updatedRows = section.rows.map((row) => {
-                                              if (row.cells && row.cells.length >= colIdx) {
-                                                const newCells = [...row.cells];
+                                      } else if (colIdx > 0) {
+                                        // Sub-bullet: column delete logic
+                                        const row = sectionData.rowSections[sectionIdx].rows[rowIdx];
+                                        const totalCols = row.cells.length;
+                                        if (totalCols > 1) {
+                                          // Two-step delete for column
+                                          if (
+                                            pendingDelete &&
+                                            pendingDelete.type === 'col' &&
+                                            pendingDelete.colIdx === colIdx
+                                          ) {
+                                            // Second backspace: delete column for all rows in all sections
+                                            clearPendingDelete();
+                                            const updatedSections = sectionData.rowSections.map(section => ({
+                                              ...section,
+                                              rows: section.rows.map(r => {
+                                                const newCells = [...r.cells];
                                                 newCells.splice(colIdx - 1, 1);
-                                                return { ...row, cells: newCells };
-                                              }
-                                              return row;
+                                                return { ...r, cells: newCells };
+                                              })
+                                            }));
+                                            onDataChange({
+                                              ...sectionData,
+                                              rowSections: updatedSections
                                             });
-                                            return { ...section, rows: updatedRows };
-                                          });
-                                          onDataChange({
-                                            ...sectionData,
-                                            rowSections: updatedSections
-                                          });
-                                          e.preventDefault();
-                                        } else {
-                                          // First backspace: highlight
-                                          setPendingDelete({ type: 'col', colIdx, sectionIdx, rowIdx, timestamp: Date.now() });
-                                          if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
-                                          deleteTimeoutRef.current = setTimeout(() => {
-                                            setPendingDelete(null);
-                                          }, 3000);
+                                            setFocusBump(b => b + 1);
+                                            // Focus previous column if possible
+                                            const prevCol = colIdx > 1 ? colIdx - 1 : 1;
+                                            let attempts = 0;
+                                            const maxAttempts = 20;
+                                            const pollFocus = () => {
+                                              const key = `${sectionIdx}-${rowIdx}-${prevCol}-value`;
+                                              const input = inputRefs.current[key];
+                                              if (input) {
+                                                input.focus();
+                                              } else if (attempts < maxAttempts) {
+                                                attempts++;
+                                                setTimeout(pollFocus, 25);
+                                              }
+                                            };
+                                            pollFocus();
+                                          } else {
+                                            // First backspace: highlight column
+                                            setPendingDelete({ type: 'col', colIdx, timestamp: Date.now() });
+                                            if (deleteTimeoutRef.current) clearTimeout(deleteTimeoutRef.current);
+                                            deleteTimeoutRef.current = setTimeout(() => {
+                                              setPendingDelete(null);
+                                            }, 3000);
+                                          }
                                           e.preventDefault();
                                         }
                                       }
                                     }
                                   }}
                                 />
+                                {/* Triangle icon for quickfill */}
+                                {!cell.value && getQuickfillOptions({ sectionData, colIdx, rowIdx, getColumnHeader }).length > 0 && (
+                                  <span
+                                    className="quickfill-triangle"
+                                    title="Show quickfill options"
+                                    style={{
+                                      position: 'absolute',
+                                      right: 6,
+                                      top: '50%',
+                                      transform: 'translateY(-50%)',
+                                      width: 0,
+                                      height: 0,
+                                      borderTop: '6px solid transparent',
+                                      borderBottom: '6px solid transparent',
+                                      borderLeft: '7px solid #888',
+                                      cursor: 'pointer',
+                                      zIndex: 10
+                                    }}
+                                    onMouseDown={e => {
+                                      e.preventDefault();
+                                      const options = getQuickfillOptions({ sectionData, colIdx, rowIdx, getColumnHeader });
+                                      openQuickfill(sectionIdx, rowIdx, colIdx, options);
+                                    }}
+                                  />
+                                )}
+                                {/* Quickfill dropdown */}
+                                {quickfillState.open && quickfillState.rowIdx === rowIdx && quickfillState.colIdx === colIdx && quickfillState.options.length > 0 && (
+                                  <div className="quickfill-dropdown" style={{ position: 'absolute', left: 0, top: '100%', zIndex: 20, minWidth: 120 }}>
+                                    {quickfillState.options.map((option, idx) => (
+                                      <div
+                                        key={option}
+                                        className={`quickfill-option${quickfillState.selectedIndex === idx ? ' selected' : ''}`}
+                                        style={{
+                                          padding: '6px 12px',
+                                          background: quickfillState.selectedIndex === idx ? '#e3f2fd' : '#fff',
+                                          color: '#222',
+                                          fontSize: '1em',
+                                          cursor: 'pointer'
+                                        }}
+                                        onMouseDown={e => {
+                                          e.preventDefault();
+                                          updateCell(quickfillState.sectionIdx, rowIdx, colIdx, 'value', option);
+                                          closeQuickfill();
+                                          setTimeout(() => {
+                                            const key = `${quickfillState.sectionIdx}-${rowIdx}-${colIdx}-value`;
+                                            const input = inputRefs.current[key];
+                                            if (input) input.focus();
+                                          }, 0);
+                                        }}
+                                        onMouseEnter={() => setQuickfillState(state => ({ ...state, selectedIndex: idx }))}
+                                      >
+                                        {option}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                                 {includeHeaders && (
                                   <span
                                     className="name-badge"
