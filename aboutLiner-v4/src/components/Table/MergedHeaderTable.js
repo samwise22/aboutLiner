@@ -82,10 +82,12 @@ const MergedHeaderTable = ({
         <tr>
           {/* Section header */}
           <th rowSpan={2} className="corner-header">Section</th>
-          
+          {/* ID header (if shown) */}
+          {showIds && (
+            <th rowSpan={2} className="id-col-header">ID</th>
+          )}
           {/* Row title header */}
           <th rowSpan={2}>{flattenedRows[0]?.row?.name || 'Title'}</th>
-          
           {/* Column section headers (spanning columns) */}
           {columnSectionGroups.map(group => (
             <th
@@ -97,7 +99,6 @@ const MergedHeaderTable = ({
             </th>
           ))}
         </tr>
-        
         <tr>
           {/* Column headers (individual) */}
           {columnSectionGroups.flatMap(group => 
@@ -121,11 +122,9 @@ const MergedHeaderTable = ({
           )}
         </tr>
       </thead>
-      
       <tbody>
         {flattenedRows.map((rowData, flatRowIdx) => {
           const { row, sectionId, sectionName, firstInSection, rowsInSection } = rowData;
-          
           return (
             <tr key={`row-${row.id || flatRowIdx}`}>
               {/* Section cell (rowspan for the entire section) */}
@@ -134,7 +133,10 @@ const MergedHeaderTable = ({
                   {sectionName === '' ? '' : sectionName}
                 </td>
               )}
-              
+              {/* ID cell (if shown) */}
+              {showIds && (
+                <td className="id-col" style={{textAlign: 'center', verticalAlign: 'middle'}}>{row.id}</td>
+              )}
               {/* Row title cell */}
               <td 
                 className={
@@ -143,21 +145,15 @@ const MergedHeaderTable = ({
                 onClick={() => onCellClick && onCellClick(flatRowIdx, 0)}
                 onDoubleClick={() => onCellDoubleClick && onCellDoubleClick(flatRowIdx, 0)}
               >
-                {showIds && (
-                  <span className="row-id">{row.id}</span>
-                )}
                 {row.value}
               </td>
-              
               {/* Data cells */}
               {row.cells.map((cell, cellIdx) => (
                 <td
                   key={`cell-${row.id}-${cellIdx}`}
-                  className={`
-                    data-cell
-                    ${hoveredCol === cellIdx ? 'highlight-column' : ''}
-                    ${focusedCell.row === flatRowIdx && focusedCell.col === cellIdx + 1 ? 'highlight-cell' : ''}
-                  `}
+                  className={
+                    `data-cell ${hoveredCol === cellIdx ? 'highlight-column' : ''} ${focusedCell.row === flatRowIdx && focusedCell.col === cellIdx + 1 ? 'highlight-cell' : ''}`
+                  }
                   onClick={() => onCellClick && onCellClick(flatRowIdx, cellIdx + 1)}
                   onDoubleClick={() => onCellDoubleClick && onCellDoubleClick(flatRowIdx, cellIdx + 1)}
                 >

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import '../../styles/outlinev3.css';
+import { generateRowId } from '../../models/SectionModel';
 
 /**
  * OutlineModeV3 - Working version with proper styling and robust keyboard navigation
@@ -253,7 +254,7 @@ const OutlineModeV3 = ({
     if (!section) return;
     const templateRow = section.rows[0] || { cells: [] };
     const newRow = {
-      id: Math.random().toString(36).slice(2),
+      id: generateRowId(),
       name: '',
       value: '',
       cells: templateRow.cells.map(cell => ({
@@ -283,7 +284,7 @@ const OutlineModeV3 = ({
   };
 
   // Helper: insert a new column at colIdx+1 for all rows
-  const insertColumn = (colIdx) => {
+  const insertColumn = (colIdx, sectionIdx, rowIdx) => {
     const updatedSections = sectionData.rowSections.map(section => {
       const updatedRows = section.rows.map(row => {
         const newCells = [...row.cells];
@@ -297,17 +298,10 @@ const OutlineModeV3 = ({
       rowSections: updatedSections
     });
     setTimeout(() => {
-      // Focus the new column's value field in the same row
-      for (let s = 0; s < updatedSections.length; s++) {
-        for (let r = 0; r < updatedSections[s].rows.length; r++) {
-          const key = `${s}-${r}-${colIdx + 1}-value`;
-          const input = inputRefs.current[key];
-          if (input) {
-            input.focus();
-            return;
-          }
-        }
-      }
+      // Focus the new column's value field in the same row and section
+      const key = `${sectionIdx}-${rowIdx}-${colIdx + 1}-value`;
+      const input = inputRefs.current[key];
+      if (input) input.focus();
     }, 0);
   };
 
@@ -348,6 +342,9 @@ const OutlineModeV3 = ({
               return (
                 <li key={row.id} className="row-item">
                   <div className="cell-row">
+                    {includeIds && (
+                      <div className="id-cell" title="Row ID">{row.id}</div>
+                    )}
                     <div className="bullet">•</div>
                     <div className={`row-label ${getRowTitleHeader() ? 'has-name' : ''} ${focusedNameField === `${sectionIdx}-${rowIdx}-0` ? 'name-input-focused' : ''}`}> 
                       {includeHeaders && (
@@ -552,7 +549,7 @@ const OutlineModeV3 = ({
                                       e.preventDefault();
                                       moveNameValueFocus(sectionIdx, rowIdx, colIdx, 'value', 'left');
                                     } else if (
-                                      e.key === 'Enter' && caretAtEnd && !e.target.value
+                                      e.key === 'Enter' && caretAtEnd
                                     ) {
                                       // If all sub-bullets in this column are blank, convert to new row at this position and remove the column
                                       let allBlank = true;
@@ -567,7 +564,7 @@ const OutlineModeV3 = ({
                                         if (!allBlank) break;
                                       }
                                       if (allBlank) {
-                                        // Remove the column from all rows
+                                        // Remove the column from all rows and insert a new row
                                         const updatedSections = sectionData.rowSections.map((section) => {
                                           const updatedRows = section.rows.map((row) => {
                                             if (row.cells && row.cells.length >= colIdx) {
@@ -583,7 +580,7 @@ const OutlineModeV3 = ({
                                         const section = updatedSections[sectionIdx];
                                         const templateRow = section.rows[0] || { cells: [] };
                                         const newRow = {
-                                          id: Math.random().toString(36).slice(2),
+                                          id: generateRowId(),
                                           name: '',
                                           value: '',
                                           cells: templateRow.cells.map(cell => ({
@@ -604,9 +601,9 @@ const OutlineModeV3 = ({
                                         }, 0);
                                         e.preventDefault();
                                       } else {
+                                        // Always add a new column after this one
                                         e.preventDefault();
-                                        // Add new column after this one
-                                        insertColumn(colIdx);
+                                        insertColumn(colIdx, sectionIdx, rowIdx);
                                       }
                                     } else if (
                                       e.key === 'Backspace' && caretAtStart && !e.target.value
