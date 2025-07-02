@@ -601,6 +601,67 @@ const OutlineModeV3 = ({
                             e.preventDefault();
                             moveNameValueFocus(sectionIdx, rowIdx, 0, 'value', 'left');
                           } else if (
+                            e.key === 'Tab' && !e.target.value && row.cells.every(cell => !cell.value) && rowIdx > 0
+                          ) {
+                            e.preventDefault();
+                            // Demote this row to a Level 2 sub-bullet of the previous row
+                            const prevRow = sectionData.rowSections[sectionIdx].rows[rowIdx - 1];
+                            const newCells = [...prevRow.cells, { name: row.name, value: row.value }];
+                            const updatedPrevRow = { ...prevRow, cells: newCells };
+                            // Remove this row
+                            const updatedRows = sectionData.rowSections[sectionIdx].rows.filter((_, rIdx) => rIdx !== rowIdx);
+                            updatedRows[rowIdx - 1] = updatedPrevRow;
+                            const updatedSections = sectionData.rowSections.map((section, sIdx) => {
+                              if (sIdx !== sectionIdx) return section;
+                              return { ...section, rows: updatedRows };
+                            });
+                            // Robustly update colSections for the new column
+                            let updatedColSections = sectionData.colSections ? [...sectionData.colSections] : [];
+                            const newColIdx = newCells.length; // 1-based
+                            const defaultColName = row.name || `Column ${newColIdx}`;
+                            // Find or create the colSection for this new column
+                            let targetColSection = updatedColSections.length > 0 ? updatedColSections[updatedColSections.length - 1] : null;
+                            if (!targetColSection) {
+                              targetColSection = {
+                                sectionId: `col-section-${newColIdx - 1}`,
+                                sectionName: '',
+                                cols: []
+                              };
+                              updatedColSections.push(targetColSection);
+                            }
+                            // Ensure no duplicate col entry
+                            targetColSection.cols = targetColSection.cols || [];
+                            if (!targetColSection.cols.some(col => col.idx === newColIdx - 1)) {
+                              targetColSection.cols.push({
+                                idx: newColIdx - 1,
+                                name: defaultColName,
+                                colIndex: newColIdx
+                              });
+                            }
+                            // Save the updated colSection
+                            updatedColSections[updatedColSections.length - 1] = targetColSection;
+                            onDataChange({
+                              ...sectionData,
+                              rowSections: updatedSections,
+                              colSections: updatedColSections
+                            });
+                            // Focus the new sub-bullet's value input in the previous row (the new last cell)
+                            setTimeout(() => {
+                              const key = `${sectionIdx}-${rowIdx - 1}-${newColIdx}-value`;
+                              let attempts = 0;
+                              const maxAttempts = 20;
+                              const pollFocus = () => {
+                                const input = inputRefs.current[key];
+                                if (input) {
+                                  input.focus();
+                                } else if (attempts < maxAttempts) {
+                                  attempts++;
+                                  setTimeout(pollFocus, 25);
+                                }
+                              };
+                              pollFocus();
+                            }, 0);
+                          } else if (
                             e.key === 'Enter' && caretAtEnd
                           ) {
                             e.preventDefault();
@@ -991,6 +1052,7 @@ const OutlineModeV3 = ({
                                           ) {
                                             // Second backspace: delete column for all rows in all sections
                                             clearPendingDelete();
+                                            // Remove the column from all rows
                                             const updatedSections = sectionData.rowSections.map(section => ({
                                               ...section,
                                               rows: section.rows.map(r => {
@@ -999,9 +1061,16 @@ const OutlineModeV3 = ({
                                                 return { ...r, cells: newCells };
                                               })
                                             }));
+                                            // Remove the column from colSections as well
+                                            let updatedColSections = sectionData.colSections ? [...sectionData.colSections] : [];
+                                            updatedColSections = updatedColSections.map(colSection => ({
+                                              ...colSection,
+                                              cols: colSection.cols ? colSection.cols.filter(col => col.idx !== colIdx - 1) : []
+                                            })).filter(colSection => colSection.cols.length > 0);
                                             onDataChange({
                                               ...sectionData,
-                                              rowSections: updatedSections
+                                              rowSections: updatedSections,
+                                              colSections: updatedColSections
                                             });
                                             setFocusBump(b => b + 1);
                                             // Focus previous column if possible
