@@ -1,0 +1,23 @@
+{
+  "extends": ["react-app"],
+  "rules": {
+    // Disable expensive rules
+    "import/no-anonymous-default-export": "off",
+    "no-unused-vars": "warn",
+    "react-hooks/exhaustive-deps": "warn"
+  },
+  "settings": {
+    "import/resolver": {
+      "node": {
+        "paths": ["src"]
+      }
+    }
+  },
+  "ignorePatterns": [
+    "build/",
+    "node_modules/",
+    "Archive/",
+    "**/*.test.js",
+    "**/*.spec.js"
+  ]
+}

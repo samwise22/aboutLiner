@@ -79,8 +79,8 @@ button {
 /* Outline panel styles */
 .outline-panel {
   width: 25%;
-  padding: 16px;
-  padding-left: 24px;
+  padding: 5px;
+  padding-left: 5px;
   overflow-y: auto;
   background-color: rgb(200, 220, 220);
   border-radius: 8px;

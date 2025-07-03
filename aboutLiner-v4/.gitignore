@@ -23,3 +23,17 @@ yarn-debug.log*
 yarn-error.log*
 
 Archive/
+
+# Performance - exclude from VS Code file watching
+*.log
+*.tmp
+*.temp
+.vscode/ipch/
+.vscode/.browse.VC.db*
+.cache/
+.parcel-cache/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini

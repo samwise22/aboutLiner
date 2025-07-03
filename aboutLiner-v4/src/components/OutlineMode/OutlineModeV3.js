@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import '../../styles/outlinev3.css';
 import { generateRowId } from '../../models/SectionModel';
 import { getQuickfillOptions } from '../../models/quickfillLogic';
@@ -500,6 +500,25 @@ const OutlineModeV3 = ({
     });
   };
 
+  // Auto-resize all textareas on mount and data changes
+  useEffect(() => {
+    const resizeAllTextareas = () => {
+      Object.values(inputRefs.current).forEach(input => {
+        if (input && input.tagName === 'TEXTAREA') {
+          input.style.height = 'auto';
+          const newHeight = Math.max(input.scrollHeight, 22);
+          input.style.height = newHeight + 'px';
+        }
+      });
+    };
+    
+    // Small delay to ensure DOM is ready, then immediate call
+    resizeAllTextareas();
+    const timeoutId = setTimeout(resizeAllTextareas, 10);
+    
+    return () => clearTimeout(timeoutId);
+  }, [sectionData, focusBump]); // Re-run when data changes or focus updates
+
   return (
     <div className="outline-mode-v3">
       {sectionData.rowSections.map((section, sectionIdx) => (
@@ -827,17 +846,24 @@ const OutlineModeV3 = ({
                                     title="Cell Header (expand on focus)"
                                   />
                                 )}
-                                <input
+                                <textarea
                                   className={'value-input' + (isPendingDelete ? ' pending-delete' : '')}
                                   ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-value`] = el)}
-                                  type="text"
                                   placeholder="Value"
                                   value={cell.value || ''}
+                                  rows={1}
                                   onChange={(e) => updateCell(sectionIdx, rowIdx, colIdx, 'value', e.target.value)}
                                   onFocus={() => setFocusedCell({ sectionIdx, rowIdx, colIdx })}
+                                  onInput={(e) => {
+                                    // Auto-resize textarea based on content
+                                    const textarea = e.target;
+                                    textarea.style.height = 'auto';
+                                    textarea.style.height = Math.max(textarea.scrollHeight, 22) + 'px';
+                                  }}
                                   onKeyDown={e => {
                                     const caretAtStart = e.target.selectionStart === 0;
                                     const caretAtEnd = e.target.selectionStart === e.target.value.length;
+                                    const isMultiLine = e.target.value.includes('\n');
                                     const options = getQuickfillOptions({ sectionData, colIdx, rowIdx, getColumnHeader });
                                     if (quickfillState.open && quickfillState.rowIdx === rowIdx && quickfillState.colIdx === colIdx) {
                                       if (handleQuickfillKeyDown(e, rowIdx, colIdx)) return;
@@ -847,13 +873,13 @@ const OutlineModeV3 = ({
                                     ) {
                                       e.preventDefault();
                                       openQuickfill(sectionIdx, rowIdx, colIdx, options);
-                                    } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                                    } else if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !isMultiLine) {
                                       e.preventDefault();
                                       handleNavigation(e.key === 'ArrowUp' ? 'up' : 'down', 'value', { metaKey: e.metaKey, ctrlKey: e.ctrlKey });
                                     } else if (e.key === 'ArrowLeft' && (caretAtStart || e.metaKey || e.ctrlKey)) {
                                       e.preventDefault();
                                       moveNameValueFocus(sectionIdx, rowIdx, colIdx, 'value', 'left');
-                                    } else if (e.key === 'Enter' && caretAtEnd) {
+                                    } else if (e.key === 'Enter' && !e.shiftKey && caretAtEnd) {
                                       e.preventDefault();
                                       // --- Modernized Enter key logic for sub-bullets ---
                                       // If all sub-bullets in this column are empty, remove the column and insert a new row below

@@ -1,10 +1,10 @@
 /**
  * OutlineModeV3 styles - Bringing back the original highly refined styles from App.js
- * with adjustments for the proper bullet structure
+ * with adjustments for the proper bullet structure and multi-line textarea spacing
  */
 
 .outline-mode-v3 {
-  padding: 0 15px;
+  padding: 0 0px;
   height: auto;
 }
 
@@ -22,17 +22,15 @@
 .outline-mode-v3 .row-item {
   display: flex;
   flex-direction: column;
-  margin-bottom: 6px;
+  margin-bottom: 12px; /* Increased margin for better spacing with multi-line sub-bullets */
 }
 
 /* Improved row-level layout */
 .outline-mode-v3 .row-item > .cell-row {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* Changed to flex-start to accommodate growing sub-bullets */
   padding-left: 0; /* Remove default padding */
-  min-height: 28px; /* Fixed height for consistent alignment */
-  height: 28px; /* Fixed height to ensure consistent spacing */
   box-sizing: border-box;
 }
 
@@ -54,28 +52,19 @@
 /* Level 1 bullet row (parent row) */
 .outline-mode-v3 .cell-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* Changed to flex-start to accommodate growing content */
   padding: 0; /* Remove vertical padding to ensure perfect centering */
-  min-height: 28px; /* Fixed height for consistent alignment */
-  height: 28px; /* Fixed height to ensure consistent spacing */
   box-sizing: border-box;
   user-select: text; /* Allow text selection */
 }
 
 .outline-mode-v3 .row-label {
   display: flex;
-  align-items: center;
+  align-items: flex-start; /* Changed to flex-start to accommodate growing content */
   position: relative;
   flex-grow: 1;
   transition: all 0.25s ease;
   padding-left: 0; /* Remove default padding - bullets positioned absolutely instead */
-  height: 28px; /* Ensure consistent height */
-}
-
-.outline-mode-v3 .row-input-group {
-  display: flex;
-  flex-grow: 1;
-  position: relative;
 }
 
 /* Ensure value input is properly positioned in relation to name-badge for row items */
@@ -133,42 +122,34 @@
 /* Sub-bullet indentation and connecting line */
 .outline-mode-v3 .sub-bullets {
   margin-left: 28px;
+  margin-top: 8px;
   position: relative;
   padding-left: 8px;
-}
-
-.outline-mode-v3 .sub-bullets::before {
-  content: "";
-  position: absolute;
-  left: -4px;
-  top: -2px;
-  height: calc(100% + 2px);
-  border-left: 1px dashed #ccc;
+  display: flex;
+  flex-direction: column;
 }
 
 .outline-mode-v3 .sub-bullets .sub-bullet {
-  margin: 4px 0;
+  margin: 1px 0;
+  padding: 1px 0;
   position: relative;
-}
-
-.outline-mode-v3 .sub-bullets .sub-bullet::before {
-  content: "";
-  position: absolute;
-  width: 8px;
-  height: 1px;
-  border-top: 1px dashed #ccc;
-  left: -12px;
-  top: 12px;
+  display: flex;
+  flex-direction: column; /* Stack content vertically */
 }
 
 .outline-mode-v3 .sub-bullet-item {
   position: relative;
   display: flex;
-  align-items: center;
-  padding-left: 0; /* Remove default padding */
-  box-sizing: border-box; /* Ensure consistent box model */
-  margin: 2px 0; /* Provide consistent vertical spacing */
-  user-select: text; /* Allow text selection */
+  flex-direction: column; /* CHANGED: stack children vertically so textarea height is respected */
+  align-items: stretch;
+  padding-left: 0;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  box-sizing: border-box;
+  margin: 0;
+  user-select: text;
+  width: 100%;
+  flex: 1;
 }
 
 .outline-mode-v3 .sub-bullet-item .value-input {
@@ -177,15 +158,32 @@
   z-index: 4; /* Above background elements but below focused inputs */
   padding-left: 1px; /* Minimal padding for more compact look */
   transition: margin-left 0.25s ease; /* Smooth transition for spacing changes */
+  /* Remove display: block !important; so it stays a flex child */
+  width: auto !important;
+  min-width: 200px !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 22px !important;
+  margin-right: 10px !important;
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
+  flex: 1 1 auto !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+  word-wrap: break-word !important;
+  white-space: pre-wrap !important;
 }
 
 .outline-mode-v3 .sub-bullet-item .row-label {
   position: relative;
   padding-left: 0;
   display: flex;
-  align-items: center !important; /* Ensure vertical centering */
-  height: 28px; /* Fixed height to match row-level */
-  min-height: 28px; /* Consistent min height */
+  align-items: flex-start; /* Changed from center to flex-start for multi-line support */
+  padding-top: 4px; /* Increased padding for visual spacing */
+  padding-bottom: 4px; /* Increased padding for visual spacing */
+  width: 100%; /* Ensure full width */
+  flex: 1; /* Allow the container to grow */
+  box-sizing: border-box; /* Ensure padding is included in size calculations */
 }
 
 /* Hide label inputs initially and show on focus */
@@ -307,6 +305,35 @@
   margin-bottom: 0 !important; /* Ensure no browser default margins */
 }
 
+/* Textarea-specific styles for Level 2 value fields */
+.outline-mode-v3 .sub-bullet-item .value-input {
+  font-family: inherit;
+  resize: none;
+  overflow: hidden;
+  min-height: 22px;
+  height: auto !important; /* Override fixed height - allow height to grow with content */
+  line-height: 1.4; /* Good line height for readability */
+  padding: 4px 6px; /* Consistent padding */
+  margin-top: 2px; /* Increased top margin for spacing */
+  margin-bottom: 2px; /* Increased bottom margin for spacing between items */
+  margin-left: 35px !important; /* Ensure space for name badge */
+  border-radius: 3px; /* Slight border radius for better appearance */
+  transition: height 0.1s ease; /* Smooth height transitions */
+  width: auto !important; /* Let it expand naturally */
+  max-width: calc(100% - 45px); /* Prevent overflow but allow reasonable width */
+  min-width: 150px; /* Ensure minimum readable width */
+  box-sizing: border-box; /* Include padding in width calculation */
+  align-self: flex-start !important; /* Override center alignment for multi-line support */
+  vertical-align: top !important; /* Override middle alignment */
+  flex-grow: 1; /* Allow textarea to grow within flex container */
+}
+
+/* Ensure quickfill triangle aligns with first line of multi-line textarea */
+.outline-mode-v3 .sub-bullet-item .quickfill-triangle {
+  top: 8px !important; /* Align with first line instead of center */
+  transform: none !important; /* Remove centering transform */
+}
+
 /* Offset value input when label is visible (overridden by critical fixes at the end) */
 .outline-mode-v3 .label-input:focus + .value-input,
 .outline-mode-v3 .row-item > .cell-row .name-input-focused .value-input {
@@ -330,7 +357,7 @@
   position: relative;
   display: flex;
   align-items: center !important; /* Ensure vertical centering */
-  height: 28px; /* Fixed height to match row-level */
+  /* height: 28px;  REMOVED fixed height to allow growth */
   min-height: 28px; /* Consistent min height */
 }
 
@@ -645,12 +672,12 @@
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 
-/* Special positioning for sub-bullets to ensure it's the only visible element when not focused */
+/* Special positioning for sub-bullets - fixed position for multi-line support */
 .outline-mode-v3 .sub-bullet-item .name-badge {
   left: 10px; /* Moved closer to the left edge for more compact layout */
-  top: 50%; /* Use percentage for precise centering */
+  top: 4px; /* Fixed position to align with first line of content - adjusted for no padding */
   z-index: 10; /* Ensure it appears above other elements */
-  transform: translateY(-50%); /* Ensure vertical centering */
+  transform: none; /* Remove centering transform for multi-line support */
   position: absolute; /* Make sure it's absolutely positioned */
 }
 
@@ -1066,4 +1093,125 @@
   background: #fff !important;
   border: 1px solid #aaa !important;
   padding: 2px 8px !important;
+}
+
+/* New textarea style for sub-bullets */
+.value-textarea {
+  font-family: inherit;
+  font-size: 1em;
+  color: #333;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 4px 8px;
+  margin-left: 8px;
+  min-height: 22px;
+  max-width: 100%;
+  resize: vertical;
+  box-sizing: border-box;
+  background: #fff;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.value-textarea:focus {
+  border-color: #1976d2;
+  outline: none;
+  background: #f7fbff;
+}
+.value-textarea.pending-delete {
+  border-color: #e53935;
+  background: #fff5f5;
+}
+
+/* --- FLEX & GROWTH FIXES FOR MULTILINE TEXTAREA --- */
+.outline-mode-v3 .sub-bullets {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+.outline-mode-v3 .sub-bullets .sub-bullet {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible !important;
+  min-height: 0 !important;
+}
+
+.outline-mode-v3 .sub-bullet-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible !important;
+  min-height: 0 !important;
+}
+
+.outline-mode-v3 .sub-bullet-item .row-label {
+  align-items: flex-start !important;
+  min-height: 0 !important;
+  height: auto !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Final, single authoritative block for sub-bullet value textarea */
+.outline-mode-v3 .sub-bullet-item textarea.value-input {
+  width: 100%;
+  min-width: 150px;
+  max-width: 100%;
+  height: auto;
+  min-height: 22px;
+  line-height: 1.4 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+  box-sizing: border-box !important;
+  resize: vertical;
+  margin-left: 35px !important;
+  margin-right: 10px !important;
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
+  border-radius: 3px;
+  transition: height 0.1s ease;
+  font-family: inherit;
+  word-wrap: break-word !important;
+  white-space: pre-wrap !important;
+  align-self: flex-start !important;
+  vertical-align: top !important;
+  flex-grow: 1;
+}
+
+/* Remove any overflow: hidden from parent containers */
+.outline-mode-v3 .row-item,
+.outline-mode-v3 .cell-row {
+  overflow: visible !important;
+}
+
+/* Move vertical and horizontal lines to the far left */
+.outline-mode-v3 .sub-bullets::before {
+  content: "";
+  position: absolute;
+  left: -7px; /* Align with center of Level 1 badge (badge left: 14px) */
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px dashed #ccc;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.outline-mode-v3 .sub-bullet-item::after {
+  content: "";
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  border-top: 1px dashed #ccc;
+  z-index: 2;
+  pointer-events: none;
 }

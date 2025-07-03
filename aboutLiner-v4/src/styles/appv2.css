@@ -97,7 +97,9 @@
 .app-content {
   border: 1px solid #ddd;
   border-radius: 4px;
-  overflow: hidden;
+  overflow: visible !important; /* Allow children to grow */
+  min-height: 0;
+  height: auto;
 }
 
 /* Text mode styles */
@@ -324,24 +326,28 @@
 .outline-panel {
   width: 25%;
   padding: 16px;
-  padding-left: 24px;
-  overflow-y: auto; /* Keep the outer container scrollable */
+  padding-left: 5px;
+  overflow-y: auto;
+  overflow-x: visible; /* Allow horizontal overflow for growing children */
   background-color: rgb(247, 247, 247);
   border-radius: 8px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   position: relative;
-  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: auto;
 }
 
 .table-panel {
   flex: 1;
-  overflow: auto;
+  overflow: visible; /* Allow children to grow naturally */
   background: #fff;
-  padding: 0 24px 24px 24px; /* 0 padding at top, 24px on other sides */
+  padding: 0 24px 24px 24px;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin-top: 0 !important;
   margin: 0;
+  min-height: 0;
+  height: auto;
 }

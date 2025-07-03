@@ -1,0 +1,49 @@
+{
+  "terminal.integrated.cwd": "aboutLiner-v4",
+  
+  // Performance optimizations
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/build/**": true,
+    "**/Archive/**": true,
+    "**/.git/**": true,
+    "**/tmp/**": true,
+    "**/temp/**": true,
+    "**/.DS_Store": true
+  },
+  
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/build": true,
+    "**/Archive": true,
+    "**/.git": true,
+    "**/tmp": true,
+    "**/temp": true
+  },
+  
+  "files.exclude": {
+    "**/Archive": true,
+    "**/.DS_Store": true
+  },
+  
+  // TypeScript/JavaScript performance
+  "typescript.preferences.includePackageJsonAutoImports": "off",
+  "typescript.suggest.autoImports": false,
+  "javascript.suggest.autoImports": false,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  
+  // Editor performance
+  "editor.semanticHighlighting.enabled": false,
+  "editor.minimap.enabled": false,
+  "editor.codeLens": false,
+  
+  // Git performance
+  "git.decorations.enabled": false,
+  "git.autoRepositoryDetection": false,
+  
+  // Disable expensive features in large files
+  "editor.largeFileOptimizations": true,
+  
+  // Reduce auto-save frequency
+  "files.autoSave": "onWindowChange"
+}

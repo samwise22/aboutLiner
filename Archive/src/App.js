@@ -340,37 +340,38 @@ export default function App() {
     return defaultOrderedListOpen(tokens, idx, options, env, self);
   };
   // Initial simple outline seed
-  const [columns, setColumns] = useState(5);
-  const [rows, setRows] = useState([
-    [
-      { id: 'ZEK1', name: 'Row Title', value: 'Row_SecA_Row 1', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
-      { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 1 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 1 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 1 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-      { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 1 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    ],
-    [
-      { id: 'ZEK2', name: 'Row Title', value: 'Row_SecA_Row 2', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
-      { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 2 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 2 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 2 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-      { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 2 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    ],
-    [
-      { id: 'ZEK3', name: 'Row Title', value: 'Row_SecB_Row 3', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
-      { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 3 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 3 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 3 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-      { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 3 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    ],
-    [
-      { id: 'ZEK4', name: 'Row Title', value: 'Row_SecB_Row 4', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
-      { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 4 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 4 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
-      { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 4 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-      { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 4 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
-    ]
-  ]);
+  // const [columns, setColumns] = useState(5);
+  // const [rows, setRows] = useState([
+  //   [
+  //     { id: 'ZEK1', name: 'Row Title', value: 'Row_SecA_Row 1', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
+  //     { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 1 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 1 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 1 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //     { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 1 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //   ],
+  //   [
+  //     { id: 'ZEK2', name: 'Row Title', value: 'Row_SecA_Row 2', section: { sectionId: 'rowSection-Row_SecA', sectionName: 'Row_SecA' } },
+  //     { name: 'Col_SecA_Col 1', value: 'Row_SecA_Row 2 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecA_Col 2', value: 'Row_SecA_Row 2 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecB_Col 3', value: 'Row_SecA_Row 2 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //     { name: 'Col_SecB_Col 4', value: 'Row_SecA_Row 2 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //   ],
+  //   [
+  //     { id: 'ZEK3', name: 'Row Title', value: 'Row_SecB_Row 3', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
+  //     { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 3 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 3 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 3 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //     { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 3 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //   ],
+  //   [
+  //     { id: 'ZEK4', name: 'Row Title', value: 'Row_SecB_Row 4', section: { sectionId: 'rowSection-Row_SecB', sectionName: 'Row_SecB' } },
+  //     { name: 'Col_SecA_Col 1', value: 'Row_SecB_Row 4 _ Col_SecA_Col 1', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecA_Col 2', value: 'Row_SecB_Row 4 _ Col_SecA_Col 2', section: { sectionId: 'colSection-Col_SecA', sectionName: 'Col_SecA' } },
+  //     { name: 'Col_SecB_Col 3', value: 'Row_SecB_Row 4 _ Col_SecB_Col 3', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  //     { name: 'Col_SecB_Col 4', value: 'Row_SecB_Row 4 _ Col_SecB_Col 4', section: { sectionId: 'colSection-Col_SecB', sectionName: 'Col_SecB' } },
+  // ]
+  const [columns, setColumns] = useState(0);
+  const [rows, setRows] = useState([]);
   const [showIds, setShowIds] = useState(true);
   // New state: includeIds
   const [includeIds, setIncludeIds] = useState(true);
