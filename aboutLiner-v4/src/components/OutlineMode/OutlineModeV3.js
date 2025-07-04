@@ -851,11 +851,11 @@ const OutlineModeV3 = ({
                                   ref={(el) => (inputRefs.current[`${sectionIdx}-${rowIdx}-${colIdx}-value`] = el)}
                                   placeholder="Value"
                                   value={cell.value || ''}
-                                  rows={1}
+                                  rows={Math.max(1, (cell.value || '').split('\n').length)}
                                   onChange={(e) => updateCell(sectionIdx, rowIdx, colIdx, 'value', e.target.value)}
                                   onFocus={() => setFocusedCell({ sectionIdx, rowIdx, colIdx })}
                                   onInput={(e) => {
-                                    // Auto-resize textarea based on content
+                                    // Auto-resize textarea based on content (optional, can be removed if rows is robust)
                                     const textarea = e.target;
                                     textarea.style.height = 'auto';
                                     textarea.style.height = Math.max(textarea.scrollHeight, 22) + 'px';

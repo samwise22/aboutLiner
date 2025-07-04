@@ -6,6 +6,7 @@
 .outline-mode-v3 {
   padding: 0 0px;
   height: auto;
+  overflow-x: hidden !important; /* Guarantee no horizontal scrollbar in outline panel */
 }
 
 .outline-mode-v3 ul {
@@ -320,7 +321,7 @@
   border-radius: 3px; /* Slight border radius for better appearance */
   transition: height 0.1s ease; /* Smooth height transitions */
   width: auto !important; /* Let it expand naturally */
-  max-width: calc(100% - 45px); /* Prevent overflow but allow reasonable width */
+  max-width: calc(100% - 50px); /* Prevent overflow but allow reasonable width */
   min-width: 150px; /* Ensure minimum readable width */
   box-sizing: border-box; /* Include padding in width calculation */
   align-self: flex-start !important; /* Override center alignment for multi-line support */
@@ -923,6 +924,12 @@
   box-sizing: border-box !important;
 }
 
+/* CRITICAL: Master override for sub-bullet value field width */
+.outline-mode-v3 .sub-bullet-item textarea.value-input,
+.outline-mode-v3 .sub-bullet-item .value-input {
+  max-width: 330px !important;
+}
+
 /* Master override for sub-bullet specific value positioning */
 .outline-mode-v3 .sub-bullet-item .label-input:focus + .value-input,
 .outline-mode-v3 .sub-bullet-item .name-input-focused .value-input {
@@ -1162,15 +1169,14 @@
 /* Final, single authoritative block for sub-bullet value textarea */
 .outline-mode-v3 .sub-bullet-item textarea.value-input {
   width: 100%;
-  min-width: 150px;
-  max-width: 100%;
+  min-width: 100px;
+  max-width: 300px; /* Further reduce width to prevent horizontal scroll */
   height: auto;
   min-height: 22px;
   line-height: 1.4 !important;
   padding-top: 4px !important;
   padding-bottom: 4px !important;
   box-sizing: border-box !important;
-  resize: vertical;
   margin-left: 35px !important;
   margin-right: 10px !important;
   margin-top: 2px !important;
@@ -1214,4 +1220,21 @@
   border-top: 1px dashed #ccc;
   z-index: 2;
   pointer-events: none;
+}
+
+/* Guarantee no horizontal scrollbar in outline panel and sub-bullet items */
+.outline-mode-v3 {
+  overflow-x: hidden !important;
+}
+.outline-mode-v3 .sub-bullets,
+.outline-mode-v3 .sub-bullets .sub-bullet,
+.outline-mode-v3 .sub-bullet-item {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+.outline-mode-v3 .sub-bullet-item textarea.value-input {
+  max-width: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  margin-right: 0 !important;
 }
